@@ -30,6 +30,7 @@ import { batchAssignServersTool } from './batch_assign_servers';
 import { batchProbeServersTool } from './batch_probe_servers';
 import { claimServerTool } from './claim_server';
 import { releaseServerTool } from './release_server';
+import { enableServerTool, disableServerTool } from './enable_server';
 
 export const toolRegistry: McpTool[] = [
   // Basic CRUD — servers
@@ -64,6 +65,10 @@ export const toolRegistry: McpTool[] = [
   // Task/occupation management
   claimServerTool,
   releaseServerTool,
+
+  // Server enable/disable
+  enableServerTool,
+  disableServerTool,
 ];
 
 export function getTool(name: string): McpTool | undefined {

@@ -37,7 +37,7 @@ export const batchQueryServersTool: McpTool = {
     const groupByConnectivity = args.group_by_connectivity === true;
 
     // Start with full server list
-    let servers = await listServers(db, tag);
+    let servers = await listServers(db, tag, true);
 
     // Filter by server_ids if provided
     if (serverIds && serverIds.length > 0) {

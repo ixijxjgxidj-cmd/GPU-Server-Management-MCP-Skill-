@@ -27,6 +27,7 @@ export interface DBServer {
   current_agent: string | null;  // Which agent is using this server (e.g. "deepseek-coder", "user-abc")
   task_started_at: string | null; // When the current task started
   notes: string | null;  // User remarks/notes about the server
+  enabled: number;  // 1=enabled (visible to MCP), 0=disabled (hidden from MCP)
   created_at: string;
   updated_at: string;
 }

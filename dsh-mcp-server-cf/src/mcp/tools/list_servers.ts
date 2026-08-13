@@ -15,7 +15,7 @@ export const listServersTool: McpTool = {
   },
   execute: async (args, { db }) => {
     const tag = args.tag as string | undefined;
-    const servers = await listServers(db, tag);
+    const servers = await listServers(db, tag, true); // only enabled servers
     const summaries = servers.map(s => ({
       id: s.id,
       name: s.name,

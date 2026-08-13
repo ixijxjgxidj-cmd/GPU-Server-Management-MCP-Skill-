@@ -13,7 +13,7 @@ export const getClusterSummaryTool: McpTool = {
     },
   },
   execute: async (args, { db }) => {
-    const servers = await listServers(db);
+    const servers = await listServers(db, undefined, true);
     const proxies = await listProxies(db);
     const includeServers = args.include_servers === true;
 

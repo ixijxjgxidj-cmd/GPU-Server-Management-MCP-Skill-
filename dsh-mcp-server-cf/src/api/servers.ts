@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Env } from '../db/schema';
-import { listServers, getServerById, createServer, updateServer, deleteServer, queryServersByAbility, getReachability, updateServerTask, releaseServerTask, updateServerStatus } from '../db/queries';
+import { listServers, getServerById, createServer, updateServer, deleteServer, queryServersByAbility, getReachability, updateServerTask, releaseServerTask, updateServerStatus, setServerEnabled } from '../db/queries';
 import { dbServerToDetail } from '../models/server';
 import { tcpPing } from '../probe/ping';
 
@@ -118,6 +118,21 @@ app.post('/probe/:id', async (c) => {
     error: result.error,
   });
   return c.json({ success: true, ...result });
+});
+
+// Enable/disable server
+app.post('/:id/enable', async (c) => {
+  const server = await getServerById(c.env.DB, c.req.param('id'));
+  if (!server) return c.json({ error: 'Not found' }, 404);
+  await setServerEnabled(c.env.DB, server.id, true);
+  return c.json({ success: true, enabled: true, server_id: server.id });
+});
+
+app.post('/:id/disable', async (c) => {
+  const server = await getServerById(c.env.DB, c.req.param('id'));
+  if (!server) return c.json({ error: 'Not found' }, 404);
+  await setServerEnabled(c.env.DB, server.id, false);
+  return c.json({ success: true, enabled: false, server_id: server.id });
 });
 
 export default app;

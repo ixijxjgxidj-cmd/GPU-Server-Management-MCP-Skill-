@@ -29,7 +29,7 @@ export const batchProbeServersTool: McpTool = {
     const tag = args.tag as string | undefined;
 
     // Get the target servers
-    let servers = await listServers(db, tag);
+    let servers = await listServers(db, tag, true);
 
     if (serverIds && serverIds.length > 0) {
       const idSet = new Set(serverIds);

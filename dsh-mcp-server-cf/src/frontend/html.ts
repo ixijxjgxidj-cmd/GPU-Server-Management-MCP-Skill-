@@ -86,6 +86,9 @@ export const HTML = `<!DOCTYPE html>
     .proxy-card .proxy-info { font-size: 13px; color: var(--text-dim); }
     .tag { display: inline-block; padding: 2px 8px; border-radius: 4px;
            background: var(--accent); font-size: 11px; margin: 2px; }
+    .modal-title-bar { display: flex; justify-content: space-between; align-items: center; }
+    .close-x { width: 28px; height: 28px; border-radius: 6px; border: none; background: transparent; color: var(--text-dim); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .close-x:hover { background: rgba(239,68,68,0.15); color: var(--red); }
     @media (max-width: 600px) {
       .grid { grid-template-columns: 1fr; padding: 0 12px 12px; }
       .header { flex-direction: column; align-items: stretch; }
@@ -150,6 +153,8 @@ export const HTML = `<!DOCTYPE html>
       createServer: (data) => fetch('/api/servers', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) }).then(r => r.json()),
       updateServer: (id, data) => fetch('/api/servers/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) }).then(r => r.json()),
       deleteServer: (id) => fetch('/api/servers/'+id, { method:'DELETE' }).then(r => r.json()),
+      enableServer: (id) => fetch('/api/servers/'+id+'/enable', { method:'POST' }).then(r => r.json()),
+      disableServer: (id) => fetch('/api/servers/'+id+'/disable', { method:'POST' }).then(r => r.json()),
       proxies: () => fetch('/api/proxies').then(r => r.json()),
       createProxy: (data) => fetch('/api/proxies', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) }).then(r => r.json()),
       deleteProxy: (id) => fetch('/api/proxies/'+id, { method:'DELETE' }).then(r => r.json()),
@@ -186,17 +191,19 @@ export const HTML = `<!DOCTYPE html>
     function renderServers() {
       const search = (document.getElementById('searchInput').value || '').toLowerCase();
       const filtered = servers.filter(s => s.name.toLowerCase().includes(search) || s.host.includes(search));
-      const online = filtered.filter(s => s.status_online && wasRecentlyUsed(s));
-      const idle = filtered.filter(s => s.status_online && !wasRecentlyUsed(s));
-      const offline = filtered.filter(s => !s.status_online);
-      const statusBar = document.getElementById('statusBar');
+      var isEnabled = function(s) { return s.enabled !== 0 && s.enabled !== false; };
+      var online = filtered.filter(function(s){ return isEnabled(s) && s.status_online && wasRecentlyUsed(s); });
+      var idle = filtered.filter(function(s){ return isEnabled(s) && s.status_online && !wasRecentlyUsed(s); });
+      var offline = filtered.filter(function(s){ return isEnabled(s) && !s.status_online; });
+      var disabled = filtered.filter(function(s){ return !isEnabled(s); });
+      var statusBar = document.getElementById('statusBar');
       statusBar.innerHTML = '';
-      [{label:'🟢 '+online.length},{label:'🟡 '+idle.length},{label:'🔴 '+offline.length}].forEach(c => {
-        const badge = document.createElement('span'); badge.className = 'status-badge'; badge.textContent = c.label; statusBar.appendChild(badge);
+      [{label:'🟢 '+online.length},{label:'🟡 '+idle.length},{label:'🔴 '+offline.length},{label:'⚪ '+disabled.length+' 已禁用'}].forEach(function(c) {
+        var badge = document.createElement('span'); badge.className = 'status-badge'; badge.textContent = c.label; statusBar.appendChild(badge);
       });
-      const grid = document.getElementById('serverGrid');
+      var grid = document.getElementById('serverGrid');
       grid.innerHTML = '';
-      [...online, ...idle, ...offline].forEach(s => grid.appendChild(createServerCard(s)));
+      [...online, ...idle, ...offline, ...disabled].forEach(function(s) { grid.appendChild(createServerCard(s)); });
     }
 
     function wasRecentlyUsed(server) {
@@ -205,8 +212,10 @@ export const HTML = `<!DOCTYPE html>
 
     function createServerCard(s) {
       const card = document.createElement('div'); card.className = 'card';
-      const isOnline = s.status_online;
-      const dotColor = isOnline ? (wasRecentlyUsed(s) ? 'var(--green)' : 'var(--yellow)') : 'var(--red)';
+      var isEnabled = s.enabled !== 0 && s.enabled !== false;
+      var isOnline = s.status_online;
+      var dotColor = isOnline ? (wasRecentlyUsed(s) ? 'var(--green)' : 'var(--yellow)') : 'var(--red)';
+      if (!isEnabled) card.style.opacity = '0.5';
 
       // Title row — safe textContent for user-controlled values
       const titleDiv = document.createElement('div'); titleDiv.className = 'title';
@@ -218,6 +227,11 @@ export const HTML = `<!DOCTYPE html>
       const statusSpan = document.createElement('span'); statusSpan.style.cssText = 'font-size:12px;color:var(--text-dim)';
       statusSpan.textContent = isOnline ? '在线' : '离线';
       titleDiv.appendChild(statusSpan);
+      if (!isEnabled) {
+        var disabledBadge = document.createElement('span'); disabledBadge.style.cssText = 'font-size:11px;padding:2px 6px;border-radius:4px;background:var(--border);color:var(--text-dim);margin-left:6px';
+        disabledBadge.textContent = '已禁用';
+        titleDiv.appendChild(disabledBadge);
+      }
       card.appendChild(titleDiv);
 
       // Info rows
@@ -261,6 +275,11 @@ export const HTML = `<!DOCTYPE html>
       addActionBtn('编辑', () => showEditServer(s.id));
       addActionBtn('探测', () => probeServer(s.id));
       addActionBtn('删除', () => deleteServerConfirm(s.id), 'danger');
+      if (isEnabled) {
+        addActionBtn('禁用', function() { API.disableServer(s.id).then(loadServers); });
+      } else {
+        addActionBtn('启用', function() { API.enableServer(s.id).then(loadServers); });
+      }
       card.appendChild(actionsDiv);
 
       return card;
@@ -314,6 +333,8 @@ export const HTML = `<!DOCTYPE html>
 
     async function probeServer(id) {
       showToast('⏳ 正在探测...');
+      var s = servers.find(function(x){ return x.id === id; });
+      var name = s ? s.name : id.substring(0,8);
       try {
         const resp = await fetch('/api/servers/probe/'+id, { method:'POST' });
         const result = await resp.json();
@@ -321,9 +342,9 @@ export const HTML = `<!DOCTYPE html>
           var ms = result.latency_ms;
           var msText = (ms !== null && ms !== undefined) ? ms+'ms' : '超时';
           if (result.reachable) {
-            showToast('✅ ' + server.name + ' ' + msText, 'success');
+            showToast('✅ ' + name + ' ' + msText, 'success');
           } else {
-            showToast('⚠️ ' + server.name + ' 不可达 (' + msText + ') ' + (result.error||''), 'error');
+            showToast('⚠️ ' + name + ' 不可达 (' + msText + ') ' + (result.error||''), 'error');
           }
           loadServers();
         } else {
@@ -335,13 +356,31 @@ export const HTML = `<!DOCTYPE html>
     }
 
     function showModal(html) {
-      // Only use innerHTML when html is a known-safe template string (form structures, not user data)
-      document.getElementById('modalContainer').innerHTML = '<div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal">'+html+'</div></div>';
+      // HTML modals: prepend X button, wrap content, no overlay-close
+      var xBtn = '<button class="close-x" onclick="closeModal()">x</button>';
+      // Find first heading and put X next to it, or put X at the top
+      var content = html;
+      // If starts with an h2, put X on the same line
+      if (html.indexOf('<h2>') === 0) {
+        var endH2 = html.indexOf('</h2>');
+        var h2Content = html.substring(4, endH2);
+        var rest = html.substring(endH2 + 5);
+        content = '<div class="modal-title-bar"><h2 style="margin-bottom:0">' + h2Content + '</h2>' + xBtn + '</div>' + rest;
+      } else {
+        content = '<div style="display:flex;justify-content:flex-end;margin-bottom:8px">' + xBtn + '</div>' + html;
+      }
+      document.getElementById('modalContainer').innerHTML = '<div class="modal-overlay"><div class="modal">' + content + '</div></div>';
     }
     function showModalWithElement(contentEl) {
       const overlay = document.createElement('div'); overlay.className = 'modal-overlay';
-      overlay.onclick = function(e) { if (e.target===this) closeModal(); };
+      // overlay click does NOT close — only X or submit closes
       const modal = document.createElement('div'); modal.className = 'modal';
+      // Prepend X button
+      const xDiv = document.createElement('div'); xDiv.style.cssText = 'display:flex;justify-content:flex-end';
+      const xBtn = document.createElement('button'); xBtn.className = 'close-x'; xBtn.textContent = 'x';
+      xBtn.onclick = closeModal;
+      xDiv.appendChild(xBtn);
+      modal.appendChild(xDiv);
       modal.appendChild(contentEl);
       overlay.appendChild(modal);
       const container = document.getElementById('modalContainer'); container.innerHTML = '';
@@ -636,15 +675,153 @@ export const HTML = `<!DOCTYPE html>
       } catch(e) { resultsDiv.innerHTML += '<p style="color:var(--red)">❌ 保存失败: '+e+'</p>'; }
     }
 
+    var pendingProxyImages = [];
+
     function showAddProxy() {
-      showModal('<h2>添加代理节点</h2><div class="form-group"><label>名称</label><input id="proxy-name" placeholder="HK-Node-1"></div>'+
-        '<div class="form-row"><div class="form-group"><label>地址</label><input id="proxy-host" placeholder="127.0.0.1"></div><div class="form-group"><label>端口</label><input id="proxy-port" value="1080"></div></div>'+
-        '<div class="form-group"><label>位置</label><input id="proxy-location" placeholder="香港"></div>'+
-        '<div class="modal-actions"><button class="btn-primary" onclick="saveProxy()">保存</button><button onclick="closeModal()">取消</button></div>');
+      pendingProxyImages = [];
+      showModal(
+        '<h2>🌐 添加代理节点</h2>' +
+        '<div class="ai-section">' +
+        '  <div class="title">🤖 AI 智能导入 — 粘贴代理配置文本或截图</div>' +
+        '  <textarea id="proxy-ai-text" placeholder="在此粘贴代理节点配置（订阅链接、节点信息、VPN配置等），也可以按 Ctrl+V 粘贴截图..."></textarea>' +
+        '  <div class="img-grid" id="proxy-img-grid"></div>' +
+        '  <div id="proxy-ai-status" style="margin-top:8px"></div>' +
+        '  <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">' +
+        '    <button class="btn-primary" onclick="pickProxyImage()">📷 选择截图</button>' +
+        '    <button class="btn-primary" onclick="runProxyAiExtract()">🤖 AI 提取</button>' +
+        '  </div>' +
+        '  <input type="file" accept="image/*" multiple style="display:none" id="proxy-img-input" onchange="handleProxyImageFiles(this)">' +
+        '</div>' +
+        '<div class="form-group"><label>名称</label><input id="proxy-name" placeholder="HK-Node-1"></div>' +
+        '<div class="form-row"><div class="form-group"><label>地址</label><input id="proxy-host" placeholder="127.0.0.1"></div><div class="form-group"><label>端口</label><input id="proxy-port" value="1080"></div></div>' +
+        '<div class="form-row"><div class="form-group"><label>协议</label><select id="proxy-protocol"><option value="socks5">SOCKS5</option><option value="http">HTTP</option></select></div><div class="form-group"><label>位置</label><input id="proxy-location" placeholder="香港"></div></div>' +
+        '<div class="form-row"><div class="form-group"><label>用户名</label><input id="proxy-user" placeholder="(可选)"></div><div class="form-group"><label>密码</label><input id="proxy-pass" type="password" placeholder="(可选)"></div></div>' +
+        '<div class="modal-actions"><button class="btn-primary" onclick="saveProxy()">保存</button><button onclick="closeModal()">取消</button></div>'
+      );
+
+      // Wire up paste on textarea to capture images
+      var ta = document.getElementById('proxy-ai-text');
+      if (ta) {
+        ta.onpaste = function(e) {
+          var hasImage = false;
+          for (var i = 0; i < e.clipboardData.items.length; i++) {
+            if (e.clipboardData.items[i].type.indexOf('image') !== -1) {
+              hasImage = true;
+              addProxyImage(e.clipboardData.items[i].getAsFile());
+            }
+          }
+          if (hasImage) e.preventDefault();
+        };
+      }
     }
+
+    function pickProxyImage() { var el = document.getElementById('proxy-img-input'); if(el) el.click(); }
+
+    function addProxyImage(blob) {
+      var reader = new FileReader();
+      reader.onload = function(ev) {
+        pendingProxyImages.push({ base64: ev.target.result.split(',')[1], mime_type: blob.type });
+        renderProxyImageThumbs();
+      };
+      reader.readAsDataURL(blob);
+    }
+
+    function renderProxyImageThumbs() {
+      var grid = document.getElementById('proxy-img-grid');
+      if (!grid) return;
+      grid.innerHTML = '';
+      for (var i = 0; i < pendingProxyImages.length; i++) {
+        (function(idx) {
+          var thumb = document.createElement('div'); thumb.className = 'thumb';
+          var img = document.createElement('img');
+          img.src = 'data:' + pendingProxyImages[idx].mime_type + ';base64,' + pendingProxyImages[idx].base64;
+          var del = document.createElement('button'); del.className = 'del'; del.textContent = 'x';
+          del.onclick = function() { pendingProxyImages.splice(idx, 1); renderProxyImageThumbs(); };
+          thumb.appendChild(img); thumb.appendChild(del); grid.appendChild(thumb);
+        })(i);
+      }
+    }
+
+    function handleProxyImageFiles(input) {
+      if (!input.files || input.files.length === 0) return;
+      for (var i = 0; i < input.files.length; i++) {
+        (function(blob) {
+          var reader = new FileReader();
+          reader.onload = function(ev) {
+            pendingProxyImages.push({ base64: ev.target.result.split(',')[1], mime_type: blob.type });
+            renderProxyImageThumbs();
+          };
+          reader.readAsDataURL(blob);
+        })(input.files[i]);
+      }
+      input.value = '';
+    }
+
+    function runProxyAiExtract() {
+      var text = document.getElementById('proxy-ai-text') ? document.getElementById('proxy-ai-text').value.trim() : '';
+      var statusDiv = document.getElementById('proxy-ai-status');
+      statusDiv.innerHTML = '<div class="ai-loading"><div class="spinner"></div><span>AI 正在识别代理信息...</span></div>';
+
+      if (!text && pendingProxyImages.length === 0) {
+        statusDiv.innerHTML = '<p style="color:var(--red)">请粘贴文本或上传图片后再提取</p>';
+        return;
+      }
+
+      var body = {};
+      if (text) body.text = text;
+      if (pendingProxyImages.length > 0) body.images = pendingProxyImages;
+
+      fetch('/api/ai/extract-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(result) {
+        if (result.success && result.data) {
+          var d = result.data;
+          function setVal(id, val) {
+            var el = document.getElementById(id);
+            if (el) el.value = (val !== undefined && val !== null) ? String(val) : '';
+          }
+          setVal('proxy-name', d.name || d.host || '');
+          setVal('proxy-host', d.host || '');
+          setVal('proxy-port', d.port || 1080);
+          setVal('proxy-location', d.location || '');
+          setVal('proxy-user', d.username || '');
+          setVal('proxy-pass', d.password || '');
+          if (d.protocol) {
+            var sel = document.getElementById('proxy-protocol');
+            if (sel) sel.value = d.protocol;
+          }
+          statusDiv.innerHTML = '<p style="color:var(--green)">✅ AI 识别完成，已自动填充</p>';
+        } else {
+          statusDiv.innerHTML = '<p style="color:var(--red)">❌ ' + (result.error || '识别失败') + '</p>';
+        }
+      })
+      .catch(function(err) {
+        statusDiv.innerHTML = '<p style="color:var(--red)">❌ 网络错误: ' + err.message + '</p>';
+      });
+    }
+
     async function saveProxy() {
-      const data = { name: document.getElementById('proxy-name').value, host: document.getElementById('proxy-host').value, port: parseInt(document.getElementById('proxy-port').value)||1080, location: document.getElementById('proxy-location').value||null };
-      if (!data.name||!data.host) { alert('请填写名称和地址'); return; }
+      var nameEl = document.getElementById('proxy-name');
+      var hostEl = document.getElementById('proxy-host');
+      var portEl = document.getElementById('proxy-port');
+      var locationEl = document.getElementById('proxy-location');
+      var protocolEl = document.getElementById('proxy-protocol');
+      if (!nameEl || !hostEl || !nameEl.value || !hostEl.value) { showToast('请填写名称和地址', 'error'); return; }
+      var userEl = document.getElementById('proxy-user');
+      var passEl = document.getElementById('proxy-pass');
+      var data = {
+        name: nameEl.value,
+        host: hostEl.value,
+        port: parseInt(portEl ? portEl.value : '1080') || 1080,
+        username: userEl ? (userEl.value||null) : null,
+        password: passEl ? (passEl.value||null) : null,
+        location: locationEl ? (locationEl.value||null) : null,
+        protocol: protocolEl ? protocolEl.value : 'socks5'
+      };
       await API.createProxy(data); closeModal(); loadProxies();
     }
     async function deleteServerConfirm(id) { if(confirm('确定删除？')){await API.deleteServer(id);loadServers();} }

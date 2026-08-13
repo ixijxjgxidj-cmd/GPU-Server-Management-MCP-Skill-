@@ -3,12 +3,19 @@ import { v4 as uuid } from 'uuid';
 
 // ===== Server Queries =====
 
-export async function listServers(db: D1Database, tag?: string): Promise<DBServer[]> {
+export async function listServers(db: D1Database, tag?: string, onlyEnabled?: boolean): Promise<DBServer[]> {
   let query = 'SELECT * FROM servers';
+  const conditions: string[] = [];
   const params: unknown[] = [];
   if (tag) {
-    query += " WHERE tags LIKE ?";
+    conditions.push("tags LIKE ?");
     params.push(`%"${tag}"%`);
+  }
+  if (onlyEnabled) {
+    conditions.push('enabled = 1');
+  }
+  if (conditions.length > 0) {
+    query += ' WHERE ' + conditions.join(' AND ');
   }
   query += ' ORDER BY created_at DESC';
   const result = await db.prepare(query).bind(...params).all<DBServer>();
@@ -22,7 +29,7 @@ export async function getServerById(db: D1Database, id: string): Promise<DBServe
 
 export async function createServer(
   db: D1Database,
-  data: Omit<DBServer, 'id' | 'created_at' | 'updated_at' | 'status_online' | 'status_last_check' | 'status_ping_ms' | 'status_error' | 'current_task' | 'current_agent' | 'task_started_at'>
+  data: Omit<DBServer, 'id' | 'created_at' | 'updated_at' | 'status_online' | 'status_last_check' | 'status_ping_ms' | 'status_error' | 'current_task' | 'current_agent' | 'task_started_at' | 'enabled'>
 ): Promise<string> {
   const id = uuid();
   const now = new Date().toISOString();
@@ -102,8 +109,11 @@ export async function queryServersByAbility(
     conditions.push('status_online = ?');
     params.push(filters.status_online ? 1 : 0);
   }
+  // MCP-facing queries only return enabled servers
+  conditions.push('enabled = 1');
+  params.push(1);
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const where = 'WHERE ' + conditions.join(' AND ');
   const sql = `SELECT * FROM servers ${where} ORDER BY created_at DESC`;
   const result = await db.prepare(sql).bind(...params).all<DBServer>();
   return result.results;
@@ -276,4 +286,10 @@ export async function updateServerStatus(
     UPDATE servers SET status_online = ?, status_last_check = ?, status_ping_ms = ?, status_error = ?, updated_at = ?
     WHERE id = ?
   `).bind(status.online ? 1 : 0, now, status.ping_ms, status.error ?? null, now, serverId).run();
+}
+
+export async function setServerEnabled(db: D1Database, serverId: string, enabled: boolean): Promise<void> {
+  const now = new Date().toISOString();
+  await db.prepare('UPDATE servers SET enabled = ?, updated_at = ? WHERE id = ?')
+    .bind(enabled ? 1 : 0, now, serverId).run();
 }

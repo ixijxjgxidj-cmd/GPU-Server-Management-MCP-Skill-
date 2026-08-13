@@ -56,6 +56,7 @@ export interface ServerDetail {
   tags: string[];
   task: ServerTaskInfo;
   notes: string | null;
+  enabled: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -114,6 +115,7 @@ export function dbServerToDetail(
       is_busy: db.current_agent !== null,
     },
     notes: db.notes,
+    enabled: db.enabled === 1,
     created_at: db.created_at,
     updated_at: db.updated_at,
   };
