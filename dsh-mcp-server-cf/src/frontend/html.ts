@@ -458,20 +458,17 @@ export const HTML = `<!DOCTYPE html>
       pendingImages = [];
       showModal(
         '<h2>📋 添加服务器</h2>' +
-        // AI section
+        // Unified AI input section
         '<div class="ai-section">' +
-        '  <div class="title">🤖 AI 智能导入</div>' +
-        '  <textarea id="ai-text" placeholder="粘贴服务器配置文本（IP、SSH密钥、GPU信息等），或直接按 Ctrl+V 粘贴截图..."></textarea>' +
+        '  <div class="title">🤖 AI 智能导入 — 粘贴文本/截图或直接输入</div>' +
+        '  <textarea id="ai-text" placeholder="在此粘贴服务器配置文本（IP、SSH密钥、GPU信息等），也可以按 Ctrl+V 粘贴截图，文本和图片一起发送给 AI 识别..."></textarea>' +
         '  <div class="img-grid" id="img-grid"></div>' +
-        '  <div class="img-zone" id="img-zone">' +
-        '    <div style="font-size:24px;margin-bottom:4px">🖼️</div>' +
-        '    <div class="hint">点击选择多张截图，或粘贴图片到此区域</div>' +
-        '    <input type="file" accept="image/*" multiple style="display:none" id="img-input" onchange="handleImageFiles(this)">' +
-        '  </div>' +
         '  <div id="ai-status" style="margin-top:8px"></div>' +
-        '  <div class="modal-actions" style="justify-content:flex-start">' +
+        '  <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">' +
+        '    <button class="btn-primary" onclick="document.getElementById(\'img-input\').click()">📷 选择截图</button>' +
         '    <button class="btn-primary" onclick="runAiExtract()">🤖 AI 提取</button>' +
         '  </div>' +
+        '  <input type="file" accept="image/*" multiple style="display:none" id="img-input" onchange="handleImageFiles(this)">' +
         '</div>' +
         // Form section
         '<div class="form-group"><label>名称</label><input id="add-name" placeholder="my-gpu-server"></div>' +
@@ -487,17 +484,19 @@ export const HTML = `<!DOCTYPE html>
         '<div class="modal-actions"><button class="btn-primary" onclick="verifyAndSave()">验证并保存</button><button onclick="closeModal()">取消</button></div>'
       );
 
-      // Wire up image zone click
-      var imgZone = document.getElementById('img-zone');
-      if (imgZone) {
-        imgZone.onclick = function() { document.getElementById('img-input').click(); };
-        imgZone.onpaste = function(e) {
-          e.preventDefault();
+      // Wire up paste on the textarea to capture images
+      var textarea = document.getElementById('ai-text');
+      if (textarea) {
+        textarea.onpaste = function(e) {
+          var hasImage = false;
           for (var i = 0; i < e.clipboardData.items.length; i++) {
             if (e.clipboardData.items[i].type.indexOf('image') !== -1) {
+              hasImage = true;
               addImageFromBlob(e.clipboardData.items[i].getAsFile());
             }
           }
+          // If there was an image, prevent the default (don't paste binary junk into textarea)
+          if (hasImage) e.preventDefault();
         };
       }
 
