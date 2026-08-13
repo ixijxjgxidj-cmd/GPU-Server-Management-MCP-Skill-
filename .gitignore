@@ -1,0 +1,25 @@
+# DSH skills
+.dsh/
+
+# SDD workspace
+.superpowers/
+
+# Design docs
+docs/
+
+# Node
+node_modules/
+
+# Env
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,11 @@
+name = "dsh-mcp-server"
+main = "src/index.ts"
+compatibility_date = "2025-01-14"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "dsh-mcp-db"
+database_id = ""  # Set after `wrangler d1 create`
+
+[vars]
+PING_API_KEY = ""  # Optional: for check-host.net or similar
