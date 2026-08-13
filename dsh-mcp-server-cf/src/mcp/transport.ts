@@ -41,30 +41,51 @@ export async function handleSseConnection(c: Context, sessionId: string): Promis
       data: `/mcp?session=${sessionId}`,
     });
 
-    // Process queued messages and new ones
-    while (true) {
-      // Send any queued responses
-      while (session.responseQueue.length > 0) {
-        const msg = session.responseQueue.shift()!;
-        await stream.writeSSE({
-          event: 'message',
-          data: JSON.stringify(msg),
-        });
-      }
+    try {
+      // Process queued messages and new ones
+      while (true) {
+        // Check if client disconnected (SSEStreamingApi.aborted is a boolean)
+        if (stream.aborted) break;
 
-      // Wait for new response
-      const response = await new Promise<JsonRpcResponse>((resolve) => {
-        if (session.responseQueue.length > 0) {
-          resolve(session.responseQueue.shift()!);
-        } else {
-          session.resolver = resolve;
+        // Send any queued responses (drain queue first)
+        while (session.responseQueue.length > 0) {
+          if (stream.aborted) break;
+          const msg = session.responseQueue.shift()!;
+          await stream.writeSSE({
+            event: 'message',
+            data: JSON.stringify(msg),
+          });
         }
-      });
+        if (stream.aborted) break;
 
-      await stream.writeSSE({
-        event: 'message',
-        data: JSON.stringify(response),
-      });
+        // If queue is empty, wait for the next response.
+        // The resolver Promise is set up. If the client disconnects while waiting,
+        // the next writeSSE call will throw, which we catch below.
+        if (session.responseQueue.length === 0) {
+          const response = await new Promise<JsonRpcResponse>((resolve) => {
+            // Wrap in microtask to avoid race between queue check and resolver
+            queueMicrotask(() => {
+              if (session.responseQueue.length > 0) {
+                resolve(session.responseQueue.shift()!);
+              } else {
+                session.resolver = resolve;
+              }
+            });
+          });
+
+          // writeSSE will throw if client disconnected
+          await stream.writeSSE({
+            event: 'message',
+            data: JSON.stringify(response),
+          });
+        }
+      }
+    } catch (_err) {
+      // Client disconnected — writeSSE throws when stream is closed
+      // Exit loop gracefully
+    } finally {
+      // Clean up session when connection ends
+      removeSession(sessionId);
     }
   });
 }

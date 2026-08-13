@@ -9,7 +9,7 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.post('/', async (c) => {
   const body = await c.req.json();
-  const { host, port = 22 } = body;
+  const { host, port = 22, server_id } = body;
 
   return streamSSE(c, async (stream) => {
     // Step 1: Direct TCP ping (SSH port)
@@ -19,6 +19,10 @@ app.post('/', async (c) => {
       step: 'direct_ssh', status: pingResult.reachable ? 'success' : 'failed',
       latency_ms: pingResult.latency_ms, error: pingResult.error,
     }) });
+
+    // TODO: Step 1b — Ping from mainland China using an external service (check-host.net, itdog.cn, etc.)
+    // This step would call a third-party API to check server reachability from a Chinese network
+    // perspective, which is critical for users accessing servers from within mainland China.
 
     // Step 2: Test through each proxy in pool
     const proxies = await listProxies(c.env.DB);
@@ -46,9 +50,9 @@ app.post('/', async (c) => {
         latency_ms: result.latency_ms, error: result.error,
       }) });
 
-      // Cache reachability
-      if (result.reachable) {
-        await upsertReachability(c.env.DB, proxy.id, '', true, result.latency_ms);
+      // Cache reachability only when we have a valid server_id
+      if (result.reachable && server_id) {
+        await upsertReachability(c.env.DB, proxy.id, server_id, true, result.latency_ms);
       }
     }
 

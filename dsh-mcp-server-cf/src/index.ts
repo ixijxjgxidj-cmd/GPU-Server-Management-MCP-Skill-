@@ -8,12 +8,14 @@ import proxiesApi from './api/proxies';
 import verifyApi from './api/verify';
 import usageApi from './api/usage';
 import { tcpPing } from './probe/ping';
-import { updateServerStatus } from './db/queries';
+import { getServerById, updateServerStatus } from './db/queries';
 import { HTML as frontendHtml } from './frontend/html';
 
 const app = new Hono<{ Bindings: Env }>();
 
 // CORS for frontend
+// TODO: Restrict CORS origin in production. Currently allows all origins.
+// Replace with: app.use('*', cors({ origin: 'https://yourdomain.com' }));
 app.use('*', cors());
 
 // === MCP Endpoints ===
@@ -40,7 +42,6 @@ app.post('/mcp', async (c) => {
 
 // Probe a specific server (TCP ping)
 app.post('/api/servers/probe/:id', async (c) => {
-  const { getServerById } = await import('./db/queries');
   const server = await getServerById(c.env.DB, c.req.param('id'));
   if (!server) return c.json({ error: 'Not found' }, 404);
 

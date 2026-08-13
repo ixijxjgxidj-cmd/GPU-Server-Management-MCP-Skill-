@@ -1,5 +1,6 @@
 import type { McpTool } from './index';
 import { listServers } from '../../db/queries';
+import { renderConnectionMode } from '../../models/server';
 
 export const listServersTool: McpTool = {
   definition: {
@@ -22,9 +23,11 @@ export const listServersTool: McpTool = {
       port: s.port,
       gpu_model: s.gpu_model,
       status_online: s.status_online === 1,
-      connection_mode_label: s.v2ray_available || s.direct_when_proxy_available || s.direct_when_no_proxy
-        ? (s.v2ray_available && s.direct_when_proxy_available ? '直连' : 'SOCKS5代理')
-        : '未配置',
+      connection_mode_label: renderConnectionMode({
+        v2ray_available: s.v2ray_available === 1,
+        direct_when_proxy_available: s.direct_when_proxy_available === 1,
+        direct_when_no_proxy: s.direct_when_no_proxy === 1,
+      }),
     }));
     return {
       content: [{ type: 'text', text: JSON.stringify(summaries, null, 2) }],

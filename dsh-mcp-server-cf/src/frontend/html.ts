@@ -185,16 +185,46 @@ export const HTML = `<!DOCTYPE html>
       const card = document.createElement('div'); card.className = 'card';
       const isOnline = s.status_online;
       const dotColor = isOnline ? (wasRecentlyUsed(s) ? 'var(--green)' : 'var(--yellow)') : 'var(--red)';
-      card.innerHTML = '<div class="title"><span><span class="status-dot" style="background:'+dotColor+'"></span>'+s.name+'</span><span style="font-size:12px;color:var(--text-dim)">'+(isOnline?'在线':'离线')+'</span></div>'+
-        '<div class="info-row"><span>地址</span><span>'+s.host+':'+s.port+'</span></div>'+
-        '<div class="info-row"><span>GPU</span><span>'+(s.gpu_model||'N/A')+'</span></div>'+
-        '<div class="info-row"><span>CPU</span><span>'+(s.cpu_cores?s.cpu_cores+'核':'N/A')+'</span></div>'+
-        '<div class="info-row"><span>内存</span><span>'+(s.ram_gb?s.ram_gb+'GB':'N/A')+'</span></div>'+
-        '<div class="info-row"><span>Ping</span><span>'+(s.status_ping_ms?s.status_ping_ms+'ms':'未探测')+'</span></div>'+
-        '<div class="actions"><button onclick="showServerDetail(\\''+s.id+'\\')">详情</button>'+
-        '<button onclick="showEditServer(\\''+s.id+'\\')">编辑</button>'+
-        '<button onclick="probeServer(\\''+s.id+'\\')">探测</button>'+
-        '<button class="danger" onclick="deleteServerConfirm(\\''+s.id+'\\')">删除</button></div>';
+
+      // Title row — safe textContent for user-controlled values
+      const titleDiv = document.createElement('div'); titleDiv.className = 'title';
+      const titleLeft = document.createElement('span');
+      const dot = document.createElement('span'); dot.className = 'status-dot'; dot.style.background = dotColor;
+      titleLeft.appendChild(dot);
+      titleLeft.appendChild(document.createTextNode(s.name));
+      titleDiv.appendChild(titleLeft);
+      const statusSpan = document.createElement('span'); statusSpan.style.cssText = 'font-size:12px;color:var(--text-dim)';
+      statusSpan.textContent = isOnline ? '在线' : '离线';
+      titleDiv.appendChild(statusSpan);
+      card.appendChild(titleDiv);
+
+      // Info rows
+      function addInfoRow(label, value) {
+        const row = document.createElement('div'); row.className = 'info-row';
+        const labelSpan = document.createElement('span'); labelSpan.textContent = label;
+        const valueSpan = document.createElement('span'); valueSpan.textContent = value;
+        row.appendChild(labelSpan); row.appendChild(valueSpan);
+        card.appendChild(row);
+      }
+      addInfoRow('地址', s.host+':'+s.port);
+      addInfoRow('GPU', s.gpu_model||'N/A');
+      addInfoRow('CPU', s.cpu_cores?s.cpu_cores+'核':'N/A');
+      addInfoRow('内存', s.ram_gb?s.ram_gb+'GB':'N/A');
+      addInfoRow('Ping', s.status_ping_ms?s.status_ping_ms+'ms':'未探测');
+
+      // Actions row
+      const actionsDiv = document.createElement('div'); actionsDiv.className = 'actions';
+      const addActionBtn = (label, clickFn, extraClass) => {
+        const btn = document.createElement('button'); btn.textContent = label;
+        if (extraClass) btn.className = extraClass;
+        btn.onclick = clickFn; actionsDiv.appendChild(btn);
+      };
+      addActionBtn('详情', () => showServerDetail(s.id));
+      addActionBtn('编辑', () => showEditServer(s.id));
+      addActionBtn('探测', () => probeServer(s.id));
+      addActionBtn('删除', () => deleteServerConfirm(s.id), 'danger');
+      card.appendChild(actionsDiv);
+
       return card;
     }
 
@@ -202,18 +232,42 @@ export const HTML = `<!DOCTYPE html>
       const container = document.getElementById('proxyList'); container.innerHTML = '';
       proxies.forEach(p => {
         const div = document.createElement('div'); div.className = 'proxy-card';
-        div.innerHTML = '<div class="proxy-name">'+p.name+'</div><div class="proxy-info">'+p.protocol+'://'+p.host+':'+p.port+(p.location?' · '+p.location:'')+'</div>'+
-          '<div class="actions" style="margin-top:8px"><button onclick="deleteProxyConfirm(\\''+p.id+'\\')">删除</button></div>';
+        const nameDiv = document.createElement('div'); nameDiv.className = 'proxy-name'; nameDiv.textContent = p.name;
+        div.appendChild(nameDiv);
+        const infoDiv = document.createElement('div'); infoDiv.className = 'proxy-info';
+        infoDiv.textContent = p.protocol+'://'+p.host+':'+p.port+(p.location?' · '+p.location:'');
+        div.appendChild(infoDiv);
+        const actionsDiv = document.createElement('div'); actionsDiv.className = 'actions'; actionsDiv.style.marginTop = '8px';
+        const delBtn = document.createElement('button'); delBtn.textContent = '删除';
+        delBtn.onclick = () => deleteProxyConfirm(p.id);
+        actionsDiv.appendChild(delBtn);
+        div.appendChild(actionsDiv);
         container.appendChild(div);
       });
-      if (proxies.length===0) container.innerHTML = '<p style="color:var(--text-dim);padding:24px;text-align:center">暂无代理节点</p>';
+      if (proxies.length===0) {
+        const emptyP = document.createElement('p');
+        emptyP.style.cssText = 'color:var(--text-dim);padding:24px;text-align:center';
+        emptyP.textContent = '暂无代理节点';
+        container.appendChild(emptyP);
+      }
     }
 
     function renderLogs() {
       const tbody = document.getElementById('logTableBody'); tbody.innerHTML = '';
       logs.forEach(l => {
         const tr = document.createElement('tr'); tr.style.borderBottom = '1px solid var(--border)';
-        tr.innerHTML = '<td style="padding:8px;font-size:13px">'+new Date(l.called_at).toLocaleString()+'</td><td style="padding:8px">'+l.server_id.substring(0,8)+'...</td><td style="padding:8px">'+l.agent_id+'</td><td style="padding:8px;font-size:13px;color:var(--text-dim)">'+l.session_id.substring(0,12)+'...</td><td style="padding:8px"><span class="tag">'+l.action+'</span></td>';
+        const addTd = (content, extraStyle) => {
+          const td = document.createElement('td'); td.style.padding = '8px';
+          if (extraStyle) td.style.cssText += extraStyle;
+          td.textContent = content; tr.appendChild(td);
+        };
+        addTd(new Date(l.called_at).toLocaleString(), 'font-size:13px');
+        addTd(l.server_id.substring(0,8)+'...');
+        addTd(l.agent_id);
+        addTd(l.session_id.substring(0,12)+'...', 'font-size:13px;color:var(--text-dim)');
+        const tdAction = document.createElement('td'); tdAction.style.padding = '8px';
+        const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = l.action;
+        tdAction.appendChild(tag); tr.appendChild(tdAction);
         tbody.appendChild(tr);
       });
     }
@@ -229,7 +283,17 @@ export const HTML = `<!DOCTYPE html>
     }
 
     function showModal(html) {
+      // Only use innerHTML when html is a known-safe template string (form structures, not user data)
       document.getElementById('modalContainer').innerHTML = '<div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal">'+html+'</div></div>';
+    }
+    function showModalWithElement(contentEl) {
+      const overlay = document.createElement('div'); overlay.className = 'modal-overlay';
+      overlay.onclick = function(e) { if (e.target===this) closeModal(); };
+      const modal = document.createElement('div'); modal.className = 'modal';
+      modal.appendChild(contentEl);
+      overlay.appendChild(modal);
+      const container = document.getElementById('modalContainer'); container.innerHTML = '';
+      container.appendChild(overlay);
     }
     function closeModal() { document.getElementById('modalContainer').innerHTML = ''; }
 
@@ -254,21 +318,27 @@ export const HTML = `<!DOCTYPE html>
       const host = document.getElementById('add-host').value;
       const port = parseInt(document.getElementById('add-port').value) || 22;
       const resultsDiv = document.getElementById('verify-results');
-      resultsDiv.innerHTML = '<p>⏳ 验证中...</p>';
+      resultsDiv.textContent = '⏳ 验证中...';
       const response = await fetch('/api/verify-server', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host,port}) });
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let verifyOutput = ''; resultsDiv.innerHTML = '';
+      resultsDiv.innerHTML = '';
       while(true) {
         const {done,value} = await reader.read();
         if(done) break;
         const lines = decoder.decode(value).split('\\n').filter(l=>l.startsWith('data: '));
         for(const line of lines) {
           const data = JSON.parse(line.slice(6));
-          if(data.step==='direct_ssh') verifyOutput += '<div class="verify-step">'+(data.status==='running'?'⏳':data.status==='success'?'✅':'❌')+' 直连SSH '+(data.latency_ms?data.latency_ms+'ms':'')+' '+(data.error||'')+'</div>';
-          else if(data.step==='proxy_ssh') verifyOutput += '<div class="verify-step">'+(data.status==='running'?'⏳':data.status==='success'?'✅':'❌')+' '+data.proxy_name+' '+(data.latency_ms?data.latency_ms+'ms':'')+' '+(data.error||'')+'</div>';
-          else if(data.step==='complete' && data.best_proxy) verifyOutput += '<p style="color:var(--green)">✅ 推荐: '+data.best_proxy.name+' ('+data.best_proxy.latency_ms+'ms)</p>';
-          resultsDiv.innerHTML = verifyOutput;
+          const stepEl = document.createElement('div'); stepEl.className = 'verify-step';
+          if(data.step==='direct_ssh') {
+            stepEl.textContent = (data.status==='running'?'⏳':data.status==='success'?'✅':'❌')+' 直连SSH '+(data.latency_ms?data.latency_ms+'ms':'')+' '+(data.error||'');
+          } else if(data.step==='proxy_ssh') {
+            stepEl.textContent = (data.status==='running'?'⏳':data.status==='success'?'✅':'❌')+' '+data.proxy_name+' '+(data.latency_ms?data.latency_ms+'ms':'')+' '+(data.error||'');
+          } else if(data.step==='complete' && data.best_proxy) {
+            stepEl.style.color = 'var(--green)';
+            stepEl.textContent = '✅ 推荐: '+data.best_proxy.name+' ('+data.best_proxy.latency_ms+'ms)';
+          }
+          resultsDiv.appendChild(stepEl);
         }
       }
       const serverData = {
@@ -301,13 +371,43 @@ export const HTML = `<!DOCTYPE html>
     async function deleteProxyConfirm(id) { if(confirm('确定删除？')){await API.deleteProxy(id);loadProxies();} }
     function showServerDetail(id) {
       const s = servers.find(x=>x.id===id); if(!s) return;
-      showModal('<h2>'+s.name+'</h2><div class="info-row"><span>地址</span><span>'+s.host+':'+s.port+'</span></div><div class="info-row"><span>状态</span><span>'+(s.status_online?'🟢在线':'🔴离线')+'</span></div><div class="modal-actions"><button onclick="closeModal()">关闭</button></div>');
+      const modalContent = document.createElement('div');
+      const h2 = document.createElement('h2'); h2.textContent = s.name; modalContent.appendChild(h2);
+      const addRow = (label, value) => {
+        const row = document.createElement('div'); row.className = 'info-row';
+        const lbl = document.createElement('span'); lbl.textContent = label;
+        const val = document.createElement('span'); val.textContent = value;
+        row.appendChild(lbl); row.appendChild(val); modalContent.appendChild(row);
+      };
+      addRow('地址', s.host+':'+s.port);
+      addRow('状态', s.status_online?'🟢在线':'🔴离线');
+      const actionsDiv = document.createElement('div'); actionsDiv.className = 'modal-actions';
+      const closeBtn = document.createElement('button'); closeBtn.textContent = '关闭';
+      closeBtn.onclick = closeModal; actionsDiv.appendChild(closeBtn);
+      modalContent.appendChild(actionsDiv);
+      showModalWithElement(modalContent);
     }
     function showEditServer(id) {
       const s = servers.find(x=>x.id===id); if(!s) return;
-      showModal('<h2>编辑服务器</h2><div class="form-group"><label>名称</label><input id="edit-name" value="'+s.name+'"></div>'+
-        '<div class="form-row"><div class="form-group"><label>地址</label><input id="edit-host" value="'+s.host+'"></div><div class="form-group"><label>端口</label><input id="edit-port" value="'+s.port+'"></div></div>'+
-        '<div class="modal-actions"><button class="btn-primary" onclick="saveEditServer(\\''+id+'\\')">保存</button><button onclick="closeModal()">取消</button></div>');
+      const content = document.createElement('div');
+      const h2 = document.createElement('h2'); h2.textContent = '编辑服务器'; content.appendChild(h2);
+      const addField = (label, inputId, inputType, value) => {
+        const group = document.createElement('div'); group.className = 'form-group';
+        const lbl = document.createElement('label'); lbl.textContent = label;
+        const input = document.createElement('input'); input.id = inputId; input.type = inputType; input.value = value;
+        group.appendChild(lbl); group.appendChild(input); content.appendChild(group);
+      };
+      addField('名称', 'edit-name', 'text', s.name);
+      addField('地址', 'edit-host', 'text', s.host);
+      addField('端口', 'edit-port', 'text', String(s.port));
+      const actionsDiv = document.createElement('div'); actionsDiv.className = 'modal-actions';
+      const saveBtn = document.createElement('button'); saveBtn.className = 'btn-primary';
+      saveBtn.textContent = '保存'; saveBtn.onclick = () => saveEditServer(id);
+      actionsDiv.appendChild(saveBtn);
+      const cancelBtn = document.createElement('button'); cancelBtn.textContent = '取消';
+      cancelBtn.onclick = closeModal; actionsDiv.appendChild(cancelBtn);
+      content.appendChild(actionsDiv);
+      showModalWithElement(content);
     }
     async function saveEditServer(id) {
       await API.updateServer(id, { name: document.getElementById('edit-name').value, host: document.getElementById('edit-host').value, port: parseInt(document.getElementById('edit-port').value)||22 });
