@@ -5,7 +5,7 @@ import { renderConnectionMode, dbServerToDetail } from '../../models/server';
 export const findBestServerTool: McpTool = {
   definition: {
     name: 'find_best_server',
-    description: '根据任务需求自动推荐最佳GPU服务器。当你需要找一台最适合跑训练或推理任务的服务器时使用——传入任务要求（如GPU型号、最低内存、CPU核心数等），工具会自动筛选在线且满足条件的服务器，按资源大小排序并返回推荐列表。如果没有任何服务器满足全部条件，也会返回最接近的候选项。',
+    description: '根据任务需求自动推荐最佳GPU服务器。当你需要找一台最适合跑训练或推理任务的服务器时使用——传入任务要求（如GPU型号、最低内存、CPU核心数等），工具会自动筛选在线且满足条件的服务器，按资源大小排序并返回推荐列表。返回结果包含每台服务器的当前任务状态（task 字段：谁在用、做什么）。可选 exclude_busy=true 排除已被占用的服务器。如果没有任何服务器满足全部条件，也会返回最接近的候选项。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -15,6 +15,7 @@ export const findBestServerTool: McpTool = {
         min_cpu_cores: { type: 'number', description: '最低CPU核心数要求。例如 16。' },
         min_disk_gb: { type: 'number', description: '最低磁盘空间要求（GB）。例如 500。' },
         require_online: { type: 'boolean', default: true, description: '是否只返回在线服务器。默认为true。设为false则包括离线服务器。' },
+        exclude_busy: { type: 'boolean', default: false, description: '是否排除正在被占用的服务器。设为 true 时只返回 current_agent 为 null（无任务在跑）的空闲服务器。' },
         limit: { type: 'number', default: 5, description: '返回的最大推荐数量。默认为5。' },
       },
     },
@@ -26,6 +27,7 @@ export const findBestServerTool: McpTool = {
     const minCpuCores = args.min_cpu_cores as number | undefined;
     const minDiskGb = args.min_disk_gb as number | undefined;
     const requireOnline = args.require_online !== false;
+    const excludeBusy = args.exclude_busy === true;
     const limit = Math.min((args.limit as number) ?? 5, 20);
 
     // Query servers matching the requirements
@@ -37,10 +39,13 @@ export const findBestServerTool: McpTool = {
       status_online: requireOnline ? true : undefined,
     });
 
-    // Further filter by GPU memory (not in query, so filter in-memory)
+    // Further filter by GPU memory and busy status (in-memory)
     let filtered = servers;
     if (minGpuMemoryGb !== undefined) {
-      filtered = servers.filter(s => s.gpu_memory_gb !== null && s.gpu_memory_gb >= minGpuMemoryGb);
+      filtered = filtered.filter(s => s.gpu_memory_gb !== null && s.gpu_memory_gb >= minGpuMemoryGb);
+    }
+    if (excludeBusy) {
+      filtered = filtered.filter(s => s.current_agent === null);
     }
 
     // Sort: prefer more resources
@@ -80,6 +85,12 @@ export const findBestServerTool: McpTool = {
           direct_when_no_proxy: server.direct_when_no_proxy === 1,
         }),
         reachable_proxies: detail.reachable_proxies,
+        task: {
+          current_task: server.current_task,
+          current_agent: server.current_agent,
+          task_started_at: server.task_started_at,
+          is_busy: server.current_agent !== null,
+        },
       };
     }));
 
@@ -93,6 +104,7 @@ export const findBestServerTool: McpTool = {
         min_cpu_cores: minCpuCores ?? 'any',
         min_disk_gb: minDiskGb ?? 'any',
         require_online: requireOnline,
+        exclude_busy: excludeBusy,
       },
       recommendations,
     };

@@ -135,6 +135,8 @@ export const HTML = `<!DOCTYPE html>
       deleteProxy: (id) => fetch('/api/proxies/'+id, { method:'DELETE' }).then(r => r.json()),
       logs: () => fetch('/api/usage').then(r => r.json()),
       recordUsage: (data) => fetch('/api/usage', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) }).then(r => r.json()),
+      claimServer: (id, agent, task) => fetch('/api/servers/'+id+'/claim', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({agent, task}) }).then(r => r.json()),
+      releaseServer: (id) => fetch('/api/servers/'+id+'/release', { method:'POST' }).then(r => r.json()),
     };
 
     function switchPage(page) {
@@ -211,6 +213,22 @@ export const HTML = `<!DOCTYPE html>
       addInfoRow('CPU', s.cpu_cores?s.cpu_cores+'核':'N/A');
       addInfoRow('内存', s.ram_gb?s.ram_gb+'GB':'N/A');
       addInfoRow('Ping', s.status_ping_ms?s.status_ping_ms+'ms':'未探测');
+
+      // Task / occupancy display
+      const isBusy = s.current_agent && s.current_task;
+      if (isBusy) {
+        const taskRow = document.createElement('div'); taskRow.className = 'info-row';
+        taskRow.style.cssText = 'border-top:1px solid var(--border);padding-top:8px;margin-top:4px;color:var(--yellow)';
+        const taskLabel = document.createElement('span'); taskLabel.textContent = '📋 任务';
+        const taskValue = document.createElement('span');
+        taskValue.textContent = s.current_agent+' → '+s.current_task;
+        if (s.task_started_at) {
+          const elapsed = Math.floor((Date.now() - new Date(s.task_started_at).getTime())/60000);
+          taskValue.textContent += ' ('+elapsed+'分钟前)';
+        }
+        taskRow.appendChild(taskLabel); taskRow.appendChild(taskValue);
+        card.appendChild(taskRow);
+      }
 
       // Actions row
       const actionsDiv = document.createElement('div'); actionsDiv.className = 'actions';

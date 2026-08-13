@@ -27,6 +27,13 @@ export interface ServerSummary {
   last_used_by: string | null;
 }
 
+export interface ServerTaskInfo {
+  current_task: string | null;
+  current_agent: string | null;
+  task_started_at: string | null;
+  is_busy: boolean;
+}
+
 export interface ServerDetail {
   id: string;
   name: string;
@@ -45,6 +52,7 @@ export interface ServerDetail {
   default_proxy_id: string | null;
   reachable_proxies: Array<{ id: string; name: string; latency_ms: number | null }>;
   tags: string[];
+  task: ServerTaskInfo;
   created_at: string;
   updated_at: string;
 }
@@ -94,6 +102,12 @@ export function dbServerToDetail(
     default_proxy_id: db.default_proxy_id,
     reachable_proxies: reachableProxies ?? [],
     tags: db.tags ? JSON.parse(db.tags) : [],
+    task: {
+      current_task: db.current_task,
+      current_agent: db.current_agent,
+      task_started_at: db.task_started_at,
+      is_busy: db.current_agent !== null,
+    },
     created_at: db.created_at,
     updated_at: db.updated_at,
   };

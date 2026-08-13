@@ -5,7 +5,7 @@ import { renderConnectionMode } from '../../models/server';
 export const batchQueryServersTool: McpTool = {
   definition: {
     name: 'batch_query_servers',
-    description: '批量查询服务器，并为每台服务器附带连通性信息。用于分布式任务编排场景——当你需要一次拿到多台服务器的完整信息（含可达代理、连接方式、硬件规格），以便决定将哪些服务器分配给一个并行任务时使用。比 find_best_server 返回更多原始数据，且不排序推荐。返回的每组服务器都包含 reachable_proxies 列表。',
+    description: '批量查询服务器，并为每台服务器附带连通性信息。用于分布式任务编排场景——当你需要一次拿到多台服务器的完整信息（含谁在使用、执行什么任务可达代理、连接方式、硬件规格），以便决定将哪些服务器分配给一个并行任务时使用。比 find_best_server 返回更多原始数据，且不排序推荐。每台服务器返回 task 字段显示当前占用情况和历史任务。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -20,6 +20,7 @@ export const batchQueryServersTool: McpTool = {
         min_cpu_cores: { type: 'number', description: '最低CPU核心数要求。' },
         min_disk_gb: { type: 'number', description: '最低磁盘空间要求（GB）。' },
         require_online: { type: 'boolean', default: true, description: '是否只返回在线服务器。默认为true。' },
+        exclude_busy: { type: 'boolean', default: false, description: '是否排除正在被占用的服务器。设为 true 时只返回 current_agent 为 null 的空闲服务器。' },
         group_by_connectivity: { type: 'boolean', default: false, description: '是否按连接方式分组返回（direct 组和 proxy 组）。设为 true 时，结果会分成 direct_group 和 proxy_group 两组，方便 agent 判断哪些可以直连。' },
       },
     },
@@ -32,6 +33,7 @@ export const batchQueryServersTool: McpTool = {
     const minCpuCores = args.min_cpu_cores as number | undefined;
     const minDiskGb = args.min_disk_gb as number | undefined;
     const requireOnline = args.require_online !== false;
+    const excludeBusy = args.exclude_busy === true;
     const groupByConnectivity = args.group_by_connectivity === true;
 
     // Start with full server list
@@ -59,6 +61,9 @@ export const batchQueryServersTool: McpTool = {
     if (requireOnline) {
       servers = servers.filter(s => s.status_online === 1);
     }
+    if (excludeBusy) {
+      servers = servers.filter(s => s.current_agent === null);
+    }
 
     // Enrich each server with reachability info (concurrent)
     const enriched = await Promise.all(servers.map(async (s) => {
@@ -84,6 +89,12 @@ export const batchQueryServersTool: McpTool = {
         connection_mode: proxyConfig,
         connection_mode_label: renderConnectionMode(proxyConfig),
         tags: s.tags ? JSON.parse(s.tags) : [],
+        task: {
+          current_task: s.current_task,
+          current_agent: s.current_agent,
+          task_started_at: s.task_started_at,
+          is_busy: s.current_agent !== null,
+        },
         reachable_proxies: reachable.map(r => ({
           proxy_id: r.proxy_id,
           proxy_name: r.proxy_name,

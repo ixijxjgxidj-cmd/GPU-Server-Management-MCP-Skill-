@@ -5,7 +5,7 @@ import { renderConnectionMode } from '../../models/server';
 export const listServersTool: McpTool = {
   definition: {
     name: 'list_servers',
-    description: '列出所有GPU服务器。当你需要知道有哪些可用服务器、查看服务器集群概览、或按标签筛选服务器时使用。返回每个服务器的ID、名称、IP、端口、GPU型号、在线状态和连接方式。输出中的 connection_mode_label 说明该服务器通过V2RayN还是直连访问。',
+    description: '列出所有GPU服务器。当你需要知道有哪些可用服务器、查看服务器集群概览、或按标签筛选服务器时使用。返回每个服务器的ID、名称、IP、端口、GPU型号、在线状态、连接方式以及当前任务占用(task 字段：谁在用、在跑什么)。输出中的 connection_mode_label 说明该服务器通过V2RayN还是直连访问。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -28,6 +28,11 @@ export const listServersTool: McpTool = {
         direct_when_proxy_available: s.direct_when_proxy_available === 1,
         direct_when_no_proxy: s.direct_when_no_proxy === 1,
       }),
+      task: {
+        current_task: s.current_task,
+        current_agent: s.current_agent,
+        is_busy: s.current_agent !== null,
+      },
     }));
     return {
       content: [{ type: 'text', text: JSON.stringify(summaries, null, 2) }],

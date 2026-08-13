@@ -22,7 +22,7 @@ export async function getServerById(db: D1Database, id: string): Promise<DBServe
 
 export async function createServer(
   db: D1Database,
-  data: Omit<DBServer, 'id' | 'created_at' | 'updated_at' | 'status_online' | 'status_last_check' | 'status_ping_ms' | 'status_error'>
+  data: Omit<DBServer, 'id' | 'created_at' | 'updated_at' | 'status_online' | 'status_last_check' | 'status_ping_ms' | 'status_error' | 'current_task' | 'current_agent' | 'task_started_at'>
 ): Promise<string> {
   const id = uuid();
   const now = new Date().toISOString();
@@ -231,6 +231,40 @@ export async function getUsageLogs(
 }
 
 // ===== Status Update =====
+
+// ===== Task / Occupation Queries =====
+
+export async function updateServerTask(
+  db: D1Database,
+  serverId: string,
+  task: { agent: string; task: string }
+): Promise<void> {
+  const now = new Date().toISOString();
+  await db.prepare(`
+    UPDATE servers SET current_task = ?, current_agent = ?, task_started_at = ?, updated_at = ?
+    WHERE id = ?
+  `).bind(task.task, task.agent, now, now, serverId).run();
+}
+
+export async function releaseServerTask(
+  db: D1Database,
+  serverId: string
+): Promise<void> {
+  const now = new Date().toISOString();
+  await db.prepare(`
+    UPDATE servers SET current_task = NULL, current_agent = NULL, task_started_at = NULL, updated_at = ?
+    WHERE id = ?
+  `).bind(now, serverId).run();
+}
+
+export async function getServersWithActiveTasks(
+  db: D1Database
+): Promise<DBServer[]> {
+  const result = await db.prepare(
+    `SELECT * FROM servers WHERE current_agent IS NOT NULL ORDER BY task_started_at DESC`
+  ).all<DBServer>();
+  return result.results;
+}
 
 export async function updateServerStatus(
   db: D1Database,

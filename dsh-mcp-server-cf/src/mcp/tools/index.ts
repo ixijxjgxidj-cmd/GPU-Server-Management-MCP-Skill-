@@ -28,6 +28,8 @@ import { getClusterSummaryTool } from './get_cluster_summary';
 import { batchQueryServersTool } from './batch_query_servers';
 import { batchAssignServersTool } from './batch_assign_servers';
 import { batchProbeServersTool } from './batch_probe_servers';
+import { claimServerTool } from './claim_server';
+import { releaseServerTool } from './release_server';
 
 export const toolRegistry: McpTool[] = [
   // Basic CRUD — servers
@@ -58,6 +60,10 @@ export const toolRegistry: McpTool[] = [
   batchQueryServersTool,
   batchAssignServersTool,
   batchProbeServersTool,
+
+  // Task/occupation management
+  claimServerTool,
+  releaseServerTool,
 ];
 
 export function getTool(name: string): McpTool | undefined {

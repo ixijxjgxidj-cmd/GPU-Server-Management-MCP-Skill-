@@ -23,6 +23,9 @@ export interface DBServer {
   status_error: string | null;
   default_proxy_id: string | null;
   tags: string | null; // JSON array
+  current_task: string | null;   // What task is currently running (e.g. "train-llm", "inference-api")
+  current_agent: string | null;  // Which agent is using this server (e.g. "deepseek-coder", "user-abc")
+  task_started_at: string | null; // When the current task started
   created_at: string;
   updated_at: string;
 }

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Env } from '../db/schema';
-import { listServers, getServerById, createServer, updateServer, deleteServer, queryServersByAbility, getReachability } from '../db/queries';
+import { listServers, getServerById, createServer, updateServer, deleteServer, queryServersByAbility, getReachability, updateServerTask, releaseServerTask } from '../db/queries';
 import { dbServerToDetail } from '../models/server';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -72,6 +72,36 @@ app.put('/:id', async (c) => {
 app.delete('/:id', async (c) => {
   const success = await deleteServer(c.env.DB, c.req.param('id'));
   return c.json({ success });
+});
+
+// Claim server (mark as in use)
+app.post('/:id/claim', async (c) => {
+  const body = await c.req.json();
+  const server = await getServerById(c.env.DB, c.req.param('id'));
+  if (!server) return c.json({ error: 'Not found' }, 404);
+  await updateServerTask(c.env.DB, server.id, {
+    agent: body.agent || 'unknown',
+    task: body.task || 'unspecified',
+  });
+  return c.json({
+    success: true,
+    server_id: server.id,
+    server_name: server.name,
+    claimed_by: body.agent,
+    task: body.task,
+  });
+});
+
+// Release server (clear task marker)
+app.post('/:id/release', async (c) => {
+  const server = await getServerById(c.env.DB, c.req.param('id'));
+  if (!server) return c.json({ error: 'Not found' }, 404);
+  await releaseServerTask(c.env.DB, server.id);
+  return c.json({
+    success: true,
+    server_id: server.id,
+    server_name: server.name,
+  });
 });
 
 export default app;
