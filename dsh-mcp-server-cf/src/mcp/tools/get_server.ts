@@ -5,11 +5,11 @@ import { dbServerToDetail } from '../../models/server';
 export const getServerTool: McpTool = {
   definition: {
     name: 'get_server',
-    description: '获取单个服务器的完整信息，含连接方式和可达代理',
+    description: '获取单个服务器的完整详细信息。当 list_servers 返回的信息不够详细时使用——比如需要查看认证方式、硬件资源(CPU/内存/磁盘)、连接配置(V2RayN/直连策略)、以及哪些代理可以到达该服务器(reachable_proxies)时。server_id 从 list_servers 的返回中获取。',
     inputSchema: {
       type: 'object',
       properties: {
-        server_id: { type: 'string', description: '服务器ID' },
+        server_id: { type: 'string', description: '服务器ID——从 list_servers 返回的 id 字段获取。格式为 UUID。' },
       },
       required: ['server_id'],
     },

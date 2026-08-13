@@ -22,19 +22,34 @@ import { listProxiesTool } from './list_proxies';
 import { addProxyTool } from './add_proxy';
 import { removeProxyTool } from './remove_proxy';
 import { testProxyTool } from './test_proxy';
+import { findBestServerTool } from './find_best_server';
+import { verifyConnectivityTool } from './verify_connectivity';
+import { getClusterSummaryTool } from './get_cluster_summary';
 
 export const toolRegistry: McpTool[] = [
+  // Basic CRUD — servers
   listServersTool,
   getServerTool,
   addServerTool,
   updateServerTool,
   removeServerTool,
   queryServersTool,
-  recordUsageTool,
+
+  // Basic CRUD — proxies
   listProxiesTool,
   addProxyTool,
   removeProxyTool,
+
+  // Testing and diagnostics
   testProxyTool,
+  verifyConnectivityTool,
+
+  // Usage tracking
+  recordUsageTool,
+
+  // High-level workflow tools
+  findBestServerTool,
+  getClusterSummaryTool,
 ];
 
 export function getTool(name: string): McpTool | undefined {

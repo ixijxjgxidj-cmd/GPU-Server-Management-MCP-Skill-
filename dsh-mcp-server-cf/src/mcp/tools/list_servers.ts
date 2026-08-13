@@ -5,11 +5,11 @@ import { renderConnectionMode } from '../../models/server';
 export const listServersTool: McpTool = {
   definition: {
     name: 'list_servers',
-    description: '列出所有服务器，可选按标签过滤',
+    description: '列出所有GPU服务器。当你需要知道有哪些可用服务器、查看服务器集群概览、或按标签筛选服务器时使用。返回每个服务器的ID、名称、IP、端口、GPU型号、在线状态和连接方式。输出中的 connection_mode_label 说明该服务器通过V2RayN还是直连访问。',
     inputSchema: {
       type: 'object',
       properties: {
-        tag: { type: 'string', description: '按标签过滤' },
+        tag: { type: 'string', description: '可选标签过滤。例如 "training" 只返回标注了训练任务的服务器。标签在添加服务器时通过 tags 参数设置。' },
       },
     },
   },

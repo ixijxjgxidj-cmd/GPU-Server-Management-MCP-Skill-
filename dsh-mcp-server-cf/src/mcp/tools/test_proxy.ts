@@ -6,12 +6,12 @@ import { tcpPing } from '../../probe/ping';
 export const testProxyTool: McpTool = {
   definition: {
     name: 'test_proxy_for_server',
-    description: '测试指定代理到指定服务器的SSH连通性',
+    description: '测试指定代理节点到指定GPU服务器的SSH端口连通性和延迟。当你怀疑某个代理无法到达服务器、或者想比较不同代理的延迟来选择最优代理时使用。结果会自动缓存到数据库中。服务器端口的可达性缓存会被后续的 get_server 返回的 reachable_proxies 使用。',
     inputSchema: {
       type: 'object',
       properties: {
-        server_id: { type: 'string' },
-        proxy_id: { type: 'string' },
+        server_id: { type: 'string', description: '目标服务器ID——从 list_servers 返回的 id 字段获取。' },
+        proxy_id: { type: 'string', description: '代理节点ID——从 list_proxies 返回的 id 字段获取。' },
       },
       required: ['server_id', 'proxy_id'],
     },
