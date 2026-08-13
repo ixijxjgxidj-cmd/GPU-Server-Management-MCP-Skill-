@@ -465,7 +465,7 @@ export const HTML = `<!DOCTYPE html>
         '  <div class="img-grid" id="img-grid"></div>' +
         '  <div id="ai-status" style="margin-top:8px"></div>' +
         '  <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">' +
-        '    <button class="btn-primary" onclick="document.getElementById(\'img-input\').click()">📷 选择截图</button>' +
+        '    <button class="btn-primary" onclick="document.getElementById(\\'img-input\\').click()">📷 选择截图</button>' +
         '    <button class="btn-primary" onclick="runAiExtract()">🤖 AI 提取</button>' +
         '  </div>' +
         '  <input type="file" accept="image/*" multiple style="display:none" id="img-input" onchange="handleImageFiles(this)">' +
