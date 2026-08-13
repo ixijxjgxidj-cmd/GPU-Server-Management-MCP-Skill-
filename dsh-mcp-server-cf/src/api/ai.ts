@@ -36,10 +36,10 @@ app.post('/extract-server', async (c) => {
   }
 
   const body = await c.req.json();
-  const { text, image_base64, image_type } = body;
+  const { text, images } = body;
 
-  if (!text && !image_base64) {
-    return c.json({ error: 'No content provided. Send text and/or image_base64.' }, 400);
+  if (!text && (!images || images.length === 0)) {
+    return c.json({ error: 'No content provided. Send text and/or images.' }, 400);
   }
 
   // Build the user message content
@@ -75,21 +75,24 @@ Rules:
     }
   ];
 
-  // Add image if provided
-  if (image_base64) {
+  // Add text if provided (separate from the instruction)
+  if (text) {
     userContent.push({
-      type: 'image_url',
-      image_url: {
-        url: `data:${image_type || 'image/png'};base64,${image_base64}`
-      }
+      type: 'text',
+      text: `Here is the text content to extract from:\n\n${text}`
     });
   }
 
-  // Add text content after image if provided
-  if (text && image_base64) {
-    // Text was already added as first item, skip duplicate
-  } else if (text) {
-    // Text-only: keep the single text item
+  // Add all images if provided
+  if (images && Array.isArray(images)) {
+    for (const img of images) {
+      userContent.push({
+        type: 'image_url',
+        image_url: {
+          url: `data:${img.mime_type || 'image/png'};base64,${img.base64}`
+        }
+      });
+    }
   }
 
   try {
