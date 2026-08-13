@@ -447,11 +447,34 @@ export const HTML = `<!DOCTYPE html>
       setVal('add-gpu-mem', d.gpu_memory_gb || '');
       setVal('add-cpu', d.cpu_cores || '');
       setVal('add-ram', d.ram_gb || '');
-      if (d.auth_method) {
+      if (d.vendor_url) setVal('add-vendor-url', d.vendor_url);
+
+      // Handle auth: fill key or password
+      if (d.auth_method === 'key' && d.key_content) {
+        var authSel = document.getElementById('add-auth-method');
+        if (authSel) { authSel.value = 'key'; showKeyContent(d.key_content); }
+      } else if (d.auth_method === 'password' && d.password) {
+        var authSel = document.getElementById('add-auth-method');
+        if (authSel) { authSel.value = 'password'; showPasswordField(d.password); }
+      } else if (d.auth_method) {
         var authSel = document.getElementById('add-auth-method');
         if (authSel) { authSel.value = d.auth_method; triggerAuthChange(); }
       }
-      if (d.vendor_url) setVal('add-vendor-url', d.vendor_url);
+    }
+
+    function showKeyContent(keyContent) {
+      var c = document.getElementById('auth-fields');
+      if (!c) return;
+      c.innerHTML = '<div class="form-group"><label>SSH密钥内容</label><textarea id="add-key-content" rows="6" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:monospace;font-size:12px">' + escHtml(keyContent) + '</textarea></div>';
+      // Store for later use when switching auth methods
+      window._aiKeyContent = keyContent;
+    }
+
+    function showPasswordField(password) {
+      var c = document.getElementById('auth-fields');
+      if (!c) return;
+      c.innerHTML = '<div class="form-group"><label>密码</label><input id="add-password" type="password" value="' + escHtml(password) + '"></div>';
+      window._aiKeyContent = null;
     }
 
     function showAddServer() {
@@ -509,7 +532,12 @@ export const HTML = `<!DOCTYPE html>
       if (!c) return;
       var sel = document.getElementById('add-auth-method');
       if (sel.value === 'key') {
-        c.innerHTML = '<div class="form-group"><label>密钥路径</label><input id="add-key-path" placeholder="/home/.ssh/id_rsa"></div>';
+        // If AI previously extracted a key, show it in a textarea
+        if (window._aiKeyContent) {
+          showKeyContent(window._aiKeyContent);
+        } else {
+          c.innerHTML = '<div class="form-group"><label>密钥路径</label><input id="add-key-path" placeholder="/home/.ssh/id_rsa"></div>';
+        }
       } else {
         c.innerHTML = '<div class="form-group"><label>密码</label><input id="add-password" type="password"></div>';
       }
@@ -557,13 +585,19 @@ export const HTML = `<!DOCTYPE html>
           resultsDiv.appendChild(stepEl);
         }
       }
+      var keyContentEl = document.getElementById('add-key-content');
+      var passwordEl = document.getElementById('add-password');
+      var vendorUrlEl = document.getElementById('add-vendor-url');
+      var authMethod = document.getElementById('add-auth-method').value;
       const serverData = {
         name: document.getElementById('add-name').value, host: host, port: port,
-        username: document.getElementById('add-user').value, auth_method: document.getElementById('add-auth-method').value,
+        username: document.getElementById('add-user').value, auth_method: authMethod,
+        key_content: (authMethod === 'key' && keyContentEl) ? keyContentEl.value : null,
+        password: (authMethod === 'password' && passwordEl) ? passwordEl.value : null,
         gpu_model: document.getElementById('add-gpu').value||null, gpu_memory_gb: document.getElementById('add-gpu-mem').value?parseInt(document.getElementById('add-gpu-mem').value):null,
         cpu_cores: document.getElementById('add-cpu').value?parseInt(document.getElementById('add-cpu').value):null, ram_gb: document.getElementById('add-ram').value?parseInt(document.getElementById('add-ram').value):null,
         v2ray_available: document.getElementById('add-v2ray').checked, direct_when_proxy_available: document.getElementById('add-direct-proxy').checked, direct_when_no_proxy: document.getElementById('add-direct-no-proxy').checked,
-        vendor_url: document.getElementById('add-vendor-url') ? (document.getElementById('add-vendor-url').value||null) : null,
+        vendor_url: vendorUrlEl ? (vendorUrlEl.value||null) : null,
       };
       if (!serverData.name||!serverData.host||!serverData.username) { resultsDiv.innerHTML += '<p style="color:var(--red)">请填写必填字段</p>'; return; }
       try {
