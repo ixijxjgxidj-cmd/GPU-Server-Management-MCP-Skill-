@@ -429,14 +429,14 @@ export const HTML = `<!DOCTYPE html>
       });
 
       html += '</div><div class="modal-actions">';
-      html += '<button class="btn-primary" onclick="fillAndSaveAI(\'' + escJs(JSON.stringify(d).replace(/'/g,"\\'")) + '\')">✅ 确认并保存</button>';
-      html += '<button class="btn-primary" onclick="fillAndEditAI(\'' + escJs(JSON.stringify(d).replace(/'/g,"\\'")) + '\')">✏️ 确认并编辑</button>';
+      var dataUrl = encodeURIComponent(JSON.stringify(d));
+      html += '<button class="btn-primary" onclick="fillAndSaveAI(decodeURIComponent(\'' + dataUrl + '\'))">✅ 确认并保存</button>';
+      html += '<button class="btn-primary" onclick="fillAndEditAI(decodeURIComponent(\'' + dataUrl + '\'))">✏️ 确认并编辑</button>';
       html += '<button onclick="closeModal()">取消</button></div>';
       showModal(html);
     }
 
     function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-    function escJs(s) { return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 
     function fillAndSaveAI(jsonStr) {
       var d = JSON.parse(jsonStr);
