@@ -29,7 +29,7 @@ export async function getServerById(db: D1Database, id: string): Promise<DBServe
 
 export async function createServer(
   db: D1Database,
-  data: Omit<DBServer, 'id' | 'created_at' | 'updated_at' | 'status_online' | 'status_last_check' | 'status_ping_ms' | 'status_error' | 'current_task' | 'current_agent' | 'task_started_at' | 'enabled'>
+  data: Omit<DBServer, 'id' | 'created_at' | 'updated_at' | 'status_online' | 'status_last_check' | 'status_ping_ms' | 'status_error' | 'current_task' | 'current_agent' | 'task_started_at' | 'enabled' | 'ssh_banner' | 'os_hint'>
 ): Promise<string> {
   const id = uuid();
   const now = new Date().toISOString();

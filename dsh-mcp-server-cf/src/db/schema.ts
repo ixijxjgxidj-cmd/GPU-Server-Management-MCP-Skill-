@@ -28,6 +28,8 @@ export interface DBServer {
   task_started_at: string | null; // When the current task started
   notes: string | null;  // User remarks/notes about the server
   enabled: number;  // 1=enabled (visible to MCP), 0=disabled (hidden from MCP)
+  ssh_banner: string | null;  // SSH server banner text
+  os_hint: string | null;     // Detected OS type (Ubuntu, Debian, etc.)
   created_at: string;
   updated_at: string;
 }

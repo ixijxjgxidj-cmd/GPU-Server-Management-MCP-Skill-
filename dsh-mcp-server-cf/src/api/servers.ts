@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../db/schema';
 import { listServers, getServerById, createServer, updateServer, deleteServer, queryServersByAbility, getReachability, updateServerTask, releaseServerTask, updateServerStatus, setServerEnabled } from '../db/queries';
 import { dbServerToDetail } from '../models/server';
-import { tcpPing } from '../probe/ping';
+import { tcpPing, grabSSHBanner } from '../probe/ping';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -106,18 +106,39 @@ app.post('/:id/release', async (c) => {
   });
 });
 
-// Probe server connectivity (TCP ping to SSH port)
+// Probe server connectivity (TCP ping + SSH banner grab)
 app.post('/probe/:id', async (c) => {
   const server = await getServerById(c.env.DB, c.req.param('id'));
   if (!server) return c.json({ error: 'Not found' }, 404);
 
-  const result = await tcpPing(server.host, server.port);
+  const pingResult = await tcpPing(server.host, server.port);
   await updateServerStatus(c.env.DB, server.id, {
-    online: result.reachable,
-    ping_ms: result.latency_ms,
-    error: result.error,
+    online: pingResult.reachable,
+    ping_ms: pingResult.latency_ms,
+    error: pingResult.error,
   });
-  return c.json({ success: true, ...result });
+
+  // If reachable, also grab SSH banner to detect OS and SSH version
+  let bannerResult: any = {};
+  if (pingResult.reachable) {
+    bannerResult = await grabSSHBanner(server.host, server.port);
+    if (bannerResult.banner) {
+      await updateServer(c.env.DB, server.id, {
+        ssh_banner: bannerResult.banner,
+        os_hint: bannerResult.os_hint || null,
+      });
+    }
+  }
+
+  return c.json({
+    success: true,
+    ...pingResult,
+    ssh: bannerResult.banner ? {
+      banner: bannerResult.banner,
+      ssh_version: bannerResult.ssh_version,
+      os_hint: bannerResult.os_hint,
+    } : null,
+  });
 });
 
 // Enable/disable server

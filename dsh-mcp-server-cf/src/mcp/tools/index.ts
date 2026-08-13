@@ -31,6 +31,7 @@ import { batchProbeServersTool } from './batch_probe_servers';
 import { claimServerTool } from './claim_server';
 import { releaseServerTool } from './release_server';
 import { enableServerTool, disableServerTool } from './enable_server';
+import { detectHardwareTool } from './detect_hardware';
 
 export const toolRegistry: McpTool[] = [
   // Basic CRUD — servers
@@ -69,6 +70,9 @@ export const toolRegistry: McpTool[] = [
   // Server enable/disable
   enableServerTool,
   disableServerTool,
+
+  // Hardware detection
+  detectHardwareTool,
 ];
 
 export function getTool(name: string): McpTool | undefined {

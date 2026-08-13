@@ -247,6 +247,11 @@ export const HTML = `<!DOCTYPE html>
       addInfoRow('CPU', s.cpu_cores?s.cpu_cores+'核':'N/A');
       addInfoRow('内存', s.ram_gb?s.ram_gb+'GB':'N/A');
       addInfoRow('Ping', s.status_ping_ms?s.status_ping_ms+'ms':'未探测');
+      if (s.os_hint) addInfoRow('系统', s.os_hint);
+      if (s.ssh_banner) {
+        var ver = s.ssh_banner.match(/SSH-[\d.]+-([^\s]+)/);
+        if (ver) addInfoRow('SSH', ver[1]);
+      }
 
       // Task / occupancy display
       const isBusy = s.current_agent && s.current_task;
