@@ -8,8 +8,6 @@ import proxiesApi from './api/proxies';
 import verifyApi from './api/verify';
 import usageApi from './api/usage';
 import aiApi from './api/ai';
-import { tcpPing } from './probe/ping';
-import { getServerById, updateServerStatus } from './db/queries';
 import { HTML as frontendHtml } from './frontend/html';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -40,20 +38,6 @@ app.post('/mcp', async (c) => {
 });
 
 // === REST API Routes ===
-
-// Probe a specific server (TCP ping)
-app.post('/api/servers/probe/:id', async (c) => {
-  const server = await getServerById(c.env.DB, c.req.param('id'));
-  if (!server) return c.json({ error: 'Not found' }, 404);
-
-  const result = await tcpPing(server.host, server.port);
-  await updateServerStatus(c.env.DB, server.id, {
-    online: result.reachable,
-    ping_ms: result.latency_ms,
-    error: result.error,
-  });
-  return c.json({ success: true, ...result });
-});
 
 // Mount API routes
 app.route('/api/servers', serversApi);

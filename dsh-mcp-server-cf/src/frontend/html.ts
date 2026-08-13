@@ -313,11 +313,19 @@ export const HTML = `<!DOCTYPE html>
     async function probeAll() { for (const s of servers) await probeServer(s.id); }
 
     async function probeServer(id) {
+      showToast('⏳ 正在探测...');
       try {
         const resp = await fetch('/api/servers/probe/'+id, { method:'POST' });
         const result = await resp.json();
-        if (result.success) loadServers();
-      } catch(e) { console.error('Probe failed', e); }
+        if (result.success) {
+          showToast('✅ 探测完成 (' + (result.latency_ms||'超时') + 'ms)', 'success');
+          loadServers();
+        } else {
+          showToast('❌ 探测失败: ' + (result.error || '未知错误'), 'error');
+        }
+      } catch(e) {
+        showToast('❌ 探测失败: ' + e.message, 'error');
+      }
     }
 
     function showModal(html) {
@@ -376,6 +384,18 @@ export const HTML = `<!DOCTYPE html>
     }
 
     function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    function showToast(msg, type) {
+      var existing = document.getElementById('dsh-toast');
+      if (existing) existing.remove();
+      var toast = document.createElement('div');
+      toast.id = 'dsh-toast';
+      toast.textContent = msg;
+      toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-size:14px;z-index:9999;transition:opacity 0.3s;max-width:90%;text-align:center;' +
+        (type==='error'?'background:#ef4444;color:#fff;':type==='success'?'background:#22c55e;color:#fff;':'background:var(--card-bg);color:var(--text);border:1px solid var(--border);');
+      document.body.appendChild(toast);
+      setTimeout(function(){ toast.style.opacity = '0'; setTimeout(function(){ toast.remove(); }, 300); }, type==='error'?4000:2000);
+    }
 
     function showAddServerWithText(initialText) {
       showAddServer();
@@ -639,29 +659,108 @@ export const HTML = `<!DOCTYPE html>
       showModalWithElement(modalContent);
     }
     function showEditServer(id) {
-      const s = servers.find(x=>x.id===id); if(!s) return;
-      const content = document.createElement('div');
-      const h2 = document.createElement('h2'); h2.textContent = '编辑服务器'; content.appendChild(h2);
-      const addField = (label, inputId, inputType, value) => {
-        const group = document.createElement('div'); group.className = 'form-group';
-        const lbl = document.createElement('label'); lbl.textContent = label;
-        const input = document.createElement('input'); input.id = inputId; input.type = inputType; input.value = value;
-        group.appendChild(lbl); group.appendChild(input); content.appendChild(group);
-      };
-      addField('名称', 'edit-name', 'text', s.name);
-      addField('地址', 'edit-host', 'text', s.host);
-      addField('端口', 'edit-port', 'text', String(s.port));
-      const actionsDiv = document.createElement('div'); actionsDiv.className = 'modal-actions';
-      const saveBtn = document.createElement('button'); saveBtn.className = 'btn-primary';
-      saveBtn.textContent = '保存'; saveBtn.onclick = () => saveEditServer(id);
-      actionsDiv.appendChild(saveBtn);
-      const cancelBtn = document.createElement('button'); cancelBtn.textContent = '取消';
-      cancelBtn.onclick = closeModal; actionsDiv.appendChild(cancelBtn);
-      content.appendChild(actionsDiv);
-      showModalWithElement(content);
+      // Fetch full server details first
+      showModal('<div class="ai-loading"><div class="spinner"></div><span>加载服务器信息...</span></div>');
+      API.serverById(id).then(function(s) {
+        var content = document.createElement('div');
+        var h2 = document.createElement('h2'); h2.textContent = '✏️ 编辑服务器'; content.appendChild(h2);
+
+        function addField(label, html) {
+          var group = document.createElement('div'); group.className = 'form-group';
+          var lbl = document.createElement('label'); lbl.textContent = label;
+          group.appendChild(lbl);
+          // html is a string of innerHTML for the input element
+          var wrapper = document.createElement('div'); wrapper.innerHTML = html;
+          group.appendChild(wrapper.firstChild);
+          content.appendChild(group);
+        }
+        function addInput(label, inputId, type, value) {
+          addField(label, '<input id="'+inputId+'" type="'+type+'" value="'+escHtml(String(value!=null?value:''))+'">');
+        }
+
+        addInput('名称', 'edit-name', 'text', s.name);
+        addInput('地址', 'edit-host', 'text', s.host);
+        addInput('端口', 'edit-port', 'text', s.port);
+        addInput('用户名', 'edit-user', 'text', s.username);
+
+        // Auth method selector
+        addField('认证方式', '<select id="edit-auth-method"><option value="key"'+(s.auth_method==='key'?' selected':'')+'>SSH密钥</option><option value="password"'+(s.auth_method==='password'?' selected':'')+'>密码</option></select>');
+
+        // Auth fields: key content or password
+        var authHtml = '';
+        if (s.auth_method === 'key') {
+          authHtml = '<div class="form-group"><label>SSH密钥内容</label><textarea id="edit-key-content" rows="6" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:monospace;font-size:12px">'+escHtml(s.key_content||'')+'</textarea></div>';
+        } else {
+          authHtml = '<div class="form-group"><label>密码</label><input id="edit-password" type="password" value="'+escHtml(s.password||'')+'"></div>';
+        }
+        var authDiv = document.createElement('div'); authDiv.id = 'edit-auth-fields'; authDiv.innerHTML = authHtml;
+        content.appendChild(authDiv);
+
+        // Wire up auth method toggle
+        setTimeout(function() {
+          var sel = document.getElementById('edit-auth-method');
+          if (sel) sel.onchange = function() {
+            var c = document.getElementById('edit-auth-fields');
+            if (this.value === 'key') {
+              c.innerHTML = '<div class="form-group"><label>SSH密钥内容</label><textarea id="edit-key-content" rows="6" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:monospace;font-size:12px"></textarea></div>';
+            } else {
+              c.innerHTML = '<div class="form-group"><label>密码</label><input id="edit-password" type="password"></div>';
+            }
+          };
+        }, 50);
+
+        addInput('GPU型号', 'edit-gpu', 'text', s.capabilities?.gpu_model||s.gpu_model||'');
+        addInput('显存(GB)', 'edit-gpu-mem', 'number', s.capabilities?.gpu_memory_gb||s.gpu_memory_gb||'');
+        addInput('CPU核数', 'edit-cpu', 'number', s.capabilities?.cpu_cores||s.cpu_cores||'');
+        addInput('内存(GB)', 'edit-ram', 'number', s.capabilities?.ram_gb||s.ram_gb||'');
+        addInput('磁盘(GB)', 'edit-disk', 'number', s.capabilities?.disk_gb||s.disk_gb||'');
+        addInput('厂商URL', 'edit-vendor-url', 'text', s.vendor_url||'');
+
+        // Connection mode toggles
+        var connDiv = document.createElement('div');
+        connDiv.innerHTML = '<div style="margin:12px 0"><strong>连接方式</strong></div>'+
+          '<div class="toggle-group">'+
+          '<label><input type="checkbox" id="edit-v2ray"'+(s.proxy?.v2ray_available||s.v2ray_available?' checked':'')+'> 有V2RayN</label>'+
+          '<label><input type="checkbox" id="edit-direct-proxy"'+(s.proxy?.direct_when_proxy_available||s.direct_when_proxy_available?' checked':'')+'> V2RayN时可直连</label>'+
+          '<label><input type="checkbox" id="edit-direct-no-proxy"'+(s.proxy?.direct_when_no_proxy||s.direct_when_no_proxy?' checked':'')+'> 无代理时直连</label>'+
+          '</div>';
+        content.appendChild(connDiv);
+
+        var actionsDiv = document.createElement('div'); actionsDiv.className = 'modal-actions';
+        var saveBtn = document.createElement('button'); saveBtn.className = 'btn-primary';
+        saveBtn.textContent = '保存'; saveBtn.onclick = function() { saveEditServer(id); };
+        actionsDiv.appendChild(saveBtn);
+        var cancelBtn = document.createElement('button'); cancelBtn.textContent = '取消';
+        cancelBtn.onclick = closeModal; actionsDiv.appendChild(cancelBtn);
+        content.appendChild(actionsDiv);
+        showModalWithElement(content);
+      }).catch(function(err) {
+        showModal('<h2>❌ 加载失败</h2><p style="color:var(--red)">'+err.message+'</p><div class="modal-actions"><button class="btn-primary" onclick="closeModal()">关闭</button></div>');
+      });
     }
     async function saveEditServer(id) {
-      await API.updateServer(id, { name: document.getElementById('edit-name').value, host: document.getElementById('edit-host').value, port: parseInt(document.getElementById('edit-port').value)||22 });
+      var updates = {
+        name: document.getElementById('edit-name').value,
+        host: document.getElementById('edit-host').value,
+        port: parseInt(document.getElementById('edit-port').value)||22,
+        username: document.getElementById('edit-user').value,
+        auth_method: document.getElementById('edit-auth-method').value,
+        gpu_model: document.getElementById('edit-gpu').value||null,
+        gpu_memory_gb: document.getElementById('edit-gpu-mem').value ? parseInt(document.getElementById('edit-gpu-mem').value) : null,
+        cpu_cores: document.getElementById('edit-cpu').value ? parseInt(document.getElementById('edit-cpu').value) : null,
+        ram_gb: document.getElementById('edit-ram').value ? parseInt(document.getElementById('edit-ram').value) : null,
+        disk_gb: document.getElementById('edit-disk').value ? parseInt(document.getElementById('edit-disk').value) : null,
+        vendor_url: document.getElementById('edit-vendor-url').value||null,
+        v2ray_available: document.getElementById('edit-v2ray').checked ? 1 : 0,
+        direct_when_proxy_available: document.getElementById('edit-direct-proxy').checked ? 1 : 0,
+        direct_when_no_proxy: document.getElementById('edit-direct-no-proxy').checked ? 1 : 0,
+      };
+      // Read key or password based on auth method
+      var keyContentEl = document.getElementById('edit-key-content');
+      var passwordEl = document.getElementById('edit-password');
+      if (keyContentEl) updates.key_content = keyContentEl.value;
+      if (passwordEl) updates.password = passwordEl.value;
+      await API.updateServer(id, updates);
       closeModal(); loadServers();
     }
     switchPage('servers');

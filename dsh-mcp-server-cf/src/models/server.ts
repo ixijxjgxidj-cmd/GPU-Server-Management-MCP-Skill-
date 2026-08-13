@@ -42,6 +42,8 @@ export interface ServerDetail {
   port: number;
   username: string;
   auth_method: 'key' | 'password';
+  key_content: string | null;
+  password: string | null;
   proxy: ProxyConfig;
   capabilities: ServerCapabilities;
   connection_mode_label: string;
@@ -86,6 +88,8 @@ export function dbServerToDetail(
     port: db.port,
     username: db.username,
     auth_method: db.auth_method,
+    key_content: db.key_content,
+    password: db.password,
     proxy,
     capabilities: {
       gpu_model: db.gpu_model ?? undefined,

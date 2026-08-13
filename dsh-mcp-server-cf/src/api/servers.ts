@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import type { Env } from '../db/schema';
-import { listServers, getServerById, createServer, updateServer, deleteServer, queryServersByAbility, getReachability, updateServerTask, releaseServerTask } from '../db/queries';
+import { listServers, getServerById, createServer, updateServer, deleteServer, queryServersByAbility, getReachability, updateServerTask, releaseServerTask, updateServerStatus } from '../db/queries';
 import { dbServerToDetail } from '../models/server';
+import { tcpPing } from '../probe/ping';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -102,6 +103,20 @@ app.post('/:id/release', async (c) => {
     server_id: server.id,
     server_name: server.name,
   });
+});
+
+// Probe server connectivity (TCP ping to SSH port)
+app.post('/probe/:id', async (c) => {
+  const server = await getServerById(c.env.DB, c.req.param('id'));
+  if (!server) return c.json({ error: 'Not found' }, 404);
+
+  const result = await tcpPing(server.host, server.port);
+  await updateServerStatus(c.env.DB, server.id, {
+    online: result.reachable,
+    ping_ms: result.latency_ms,
+    error: result.error,
+  });
+  return c.json({ success: true, ...result });
 });
 
 export default app;
