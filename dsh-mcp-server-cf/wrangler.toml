@@ -5,7 +5,7 @@ compatibility_date = "2025-01-14"
 [[d1_databases]]
 binding = "DB"
 database_name = "dsh-mcp-db"
-database_id = ""  # Set after `wrangler d1 create`
+database_id = "e87774ac-cd10-465c-a427-b86720b30d1d"
 
 [vars]
 PING_API_KEY = ""  # Optional: for check-host.net or similar
