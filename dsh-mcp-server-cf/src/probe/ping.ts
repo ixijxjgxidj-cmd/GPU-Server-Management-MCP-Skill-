@@ -1,3 +1,6 @@
+// Cloudflare Workers TCP sockets - must be imported from this module
+import { connect } from 'cloudflare:sockets';
+
 export interface PingResult {
   reachable: boolean;
   latency_ms: number | null;
@@ -15,8 +18,7 @@ export async function tcpPing(
 ): Promise<PingResult> {
   const startTime = Date.now();
   try {
-    // connect() is a global in Cloudflare Workers runtime
-    const socket = await (globalThis as any).connect({ hostname: host, port, secureTransport: 'off' });
+    const socket = connect({ hostname: host, port });
     await socket.opened;
     const latencyMs = Date.now() - startTime;
     (socket as any).close();

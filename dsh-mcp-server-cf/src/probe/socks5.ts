@@ -1,3 +1,6 @@
+// Cloudflare Workers TCP sockets - must be imported from this module
+import { connect } from 'cloudflare:sockets';
+
 export interface Socks5Result {
   reachable: boolean;
   latency_ms: number | null;
@@ -21,7 +24,7 @@ export async function testViaSocks5(
 
   try {
     // connect() is a global in Cloudflare Workers runtime
-    const socket: any = await (globalThis as any).connect({ hostname: proxyHost, port: proxyPort });
+    const socket = connect({ hostname: proxyHost, port: proxyPort });
     await socket.opened;
     const writer = socket.writable.getWriter();
     const reader = socket.readable.getReader();
