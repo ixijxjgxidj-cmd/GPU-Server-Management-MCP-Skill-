@@ -9,3 +9,6 @@ database_id = "e87774ac-cd10-465c-a427-b86720b30d1d"
 
 [vars]
 PING_API_KEY = ""  # Optional: for check-host.net or similar
+AI_MODEL_API_URL = ""  # OpenAI-compatible API endpoint, e.g. https://api.openai.com/v1
+AI_MODEL_NAME = "gpt-4o"  # Model name for server info extraction (supports vision)
+AI_MODEL_API_KEY = ""  # API key for the AI model

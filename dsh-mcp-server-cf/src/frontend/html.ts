@@ -46,6 +46,20 @@ export const HTML = `<!DOCTYPE html>
     .btn-primary:hover { opacity: 0.9; }
     .search-input { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
                     background: var(--card-bg); color: var(--text); font-size: 14px; width: 200px; }
+    .paste-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 20px; text-align: center; margin: 0 24px 16px; cursor: pointer; transition: all 0.3s; }
+    .paste-zone:hover, .paste-zone.active { border-color: var(--accent); background: rgba(59,130,246,0.1); }
+    .paste-zone .icon { font-size: 32px; margin-bottom: 8px; }
+    .paste-zone .hint { font-size: 13px; color: var(--text-dim); }
+    .paste-zone .shortcut { display: inline-block; padding: 2px 8px; background: var(--border); border-radius: 4px; font-size: 12px; margin: 0 2px; }
+    .ai-loading { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 32px; }
+    .ai-loading .spinner { width: 24px; height: 24px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .extracted-info { padding: 12px 0; }
+    .extracted-info .field { display: flex; padding: 6px 0; border-bottom: 1px solid var(--border); }
+    .extracted-info .field:last-child { border-bottom: none; }
+    .extracted-info .field-label { min-width: 100px; color: var(--text-dim); font-size: 13px; }
+    .extracted-info .field-value { flex: 1; font-size: 13px; word-break: break-all; }
+    .extracted-info .field-value.key { font-family: monospace; font-size: 11px; max-height: 80px; overflow-y: auto; white-space: pre; }
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6);
                      display: flex; align-items: center; justify-content: center; z-index: 100; }
     .modal { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px;
@@ -90,6 +104,11 @@ export const HTML = `<!DOCTYPE html>
         <button class="btn-primary" onclick="probeAll()">📡 全部探测</button>
         <button class="btn-primary" onclick="showAddServer()">+ 添加</button>
       </div>
+    </div>
+    <div class="paste-zone" id="pasteZone" onclick="this.querySelector('input').click()" onpaste="handlePaste(event)">
+      <div class="icon">📋</div>
+      <div class="hint">按 <span class="shortcut">Ctrl+V</span> 粘贴服务器信息（截图或文本），AI 自动识别</div>
+      <input type="file" accept="image/*" style="display:none" onchange="handleImageFile(this)">
     </div>
     <div class="grid" id="serverGrid"></div>
   </div>
@@ -314,6 +333,178 @@ export const HTML = `<!DOCTYPE html>
       container.appendChild(overlay);
     }
     function closeModal() { document.getElementById('modalContainer').innerHTML = ''; }
+
+    // === AI Paste-to-Add-Server ===
+    document.addEventListener('paste', function(e) {
+      // Check if the paste target is an input/textarea or within the paste zone
+      var tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      handlePaste(e);
+    });
+
+    function handlePaste(e) {
+      e.preventDefault();
+      var items = e.clipboardData.items;
+      var foundImage = false;
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          foundImage = true;
+          var blob = items[i].getAsFile();
+          var reader = new FileReader();
+          reader.onload = function(ev) {
+            var base64 = ev.target.result.split(',')[1];
+            extractWithAI(null, base64, items[i].type);
+          };
+          reader.readAsDataURL(blob);
+          break;
+        }
+      }
+      if (!foundImage) {
+        var text = e.clipboardData.getData('text');
+        if (text && text.trim()) {
+          extractWithAI(text.trim(), null, null);
+        }
+      }
+    }
+
+    function handleImageFile(input) {
+      if (!input.files || !input.files[0]) return;
+      var reader = new FileReader();
+      reader.onload = function(ev) {
+        var base64 = ev.target.result.split(',')[1];
+        extractWithAI(null, base64, input.files[0].type);
+      };
+      reader.readAsDataURL(input.files[0]);
+    }
+
+    function extractWithAI(text, imageBase64, imageType) {
+      showModal('<div class="ai-loading"><div class="spinner"></div><span>AI 正在识别服务器信息...</span></div><p style="text-align:center;color:var(--text-dim);font-size:13px">正在调用 AI 模型分析粘贴内容</p>');
+
+      var body = {};
+      if (text) body.text = text;
+      if (imageBase64) { body.image_base64 = imageBase64; body.image_type = imageType || 'image/png'; }
+
+      fetch('/api/ai/extract-server', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(result) {
+        if (result.success && result.data) {
+          showExtractedResult(result.data);
+        } else {
+          showModal('<h2>AI 识别失败</h2><p style="color:var(--red)">' + (result.error || '未知错误') + '</p><div class="modal-actions"><button class="btn-primary" onclick="closeModal()">关闭</button></div>');
+        }
+      })
+      .catch(function(err) {
+        showModal('<h2>AI 识别失败</h2><p style="color:var(--red)">网络错误: ' + err.message + '</p><div class="modal-actions"><button class="btn-primary" onclick="closeModal()">关闭</button></div>');
+      });
+    }
+
+    function showExtractedResult(d) {
+      var html = '<h2>🤖 AI 识别结果</h2><p style="color:var(--text-dim);font-size:13px;margin-bottom:12px">AI 从粘贴内容中识别到以下信息，请确认后保存：</p><div class="extracted-info">';
+      var fields = [
+        { label: '名称', key: 'name' },
+        { label: '地址', key: 'host' },
+        { label: '端口', key: 'port' },
+        { label: '用户名', key: 'username' },
+        { label: '认证方式', key: 'auth_method' },
+      ];
+      for (var i = 0; i < fields.length; i++) {
+        var val = d[fields[i].key];
+        if (val !== undefined && val !== null && val !== '') {
+          html += '<div class="field"><span class="field-label">' + fields[i].label + '</span><span class="field-value">' + escHtml(String(val)) + '</span></div>';
+        }
+      }
+      if (d.key_content) {
+        html += '<div class="field"><span class="field-label">SSH密钥</span><span class="field-value key">' + escHtml(d.key_content.substring(0, 200)) + (d.key_content.length > 200 ? '...' : '') + '</span></div>';
+      } else if (d.password) {
+        html += '<div class="field"><span class="field-label">密码</span><span class="field-value">••••••••</span></div>';
+      }
+      ['gpu_model','gpu_memory_gb','cpu_cores','ram_gb','disk_gb','vendor_url'].forEach(function(k) {
+        if (d[k] !== undefined && d[k] !== null && d[k] !== '') {
+          html += '<div class="field"><span class="field-label">' + ({gpu_model:'GPU型号',gpu_memory_gb:'显存GB',cpu_cores:'CPU核数',ram_gb:'内存GB',disk_gb:'磁盘GB',vendor_url:'厂商URL'})[k] + '</span><span class="field-value">' + escHtml(String(d[k])) + '</span></div>';
+        }
+      });
+
+      html += '</div><div class="modal-actions">';
+      html += '<button class="btn-primary" onclick="fillAndSaveAI(\'' + escJs(JSON.stringify(d).replace(/'/g,"\\'")) + '\')">✅ 确认并保存</button>';
+      html += '<button class="btn-primary" onclick="fillAndEditAI(\'' + escJs(JSON.stringify(d).replace(/'/g,"\\'")) + '\')">✏️ 确认并编辑</button>';
+      html += '<button onclick="closeModal()">取消</button></div>';
+      showModal(html);
+    }
+
+    function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    function escJs(s) { return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+    function fillAndSaveAI(jsonStr) {
+      var d = JSON.parse(jsonStr);
+      showModal('<div class="ai-loading"><div class="spinner"></div><span>正在保存服务器...</span></div>');
+      var payload = {
+        name: d.name || d.host || 'ai-extracted',
+        host: d.host || '',
+        port: d.port || 22,
+        username: d.username || 'root',
+        auth_method: d.auth_method || 'password',
+        key_content: d.key_content || null,
+        password: d.password || null,
+        gpu_model: d.gpu_model || null,
+        gpu_memory_gb: d.gpu_memory_gb || null,
+        cpu_cores: d.cpu_cores || null,
+        ram_gb: d.ram_gb || null,
+        disk_gb: d.disk_gb || null,
+        vendor_url: d.vendor_url || null,
+        tags: d.tags || ['ai-extracted'],
+      };
+      if (payload.auth_method === 'key' && payload.key_content) {
+        payload.key_path = null;
+      }
+      API.createServer(payload)
+      .then(function(r) {
+        showModal('<h2>✅ 保存成功</h2><p>服务器 ' + escHtml(payload.name) + ' 已添加 (ID: ' + r.id + ')</p><div class="modal-actions"><button class="btn-primary" onclick="closeModal();loadServers()">完成</button></div>');
+      })
+      .catch(function(err) {
+        showModal('<h2>❌ 保存失败</h2><p style="color:var(--red)">' + err.message + '</p><div class="modal-actions"><button class="btn-primary" onclick="closeModal()">关闭</button></div>');
+      });
+    }
+
+    function fillAndEditAI(jsonStr) {
+      var d = JSON.parse(jsonStr);
+      closeModal();
+      // Build the add server modal with pre-filled values
+      var html = '<h2>📋 编辑服务器信息</h2><p style="color:var(--text-dim);font-size:13px;margin-bottom:12px">AI 已提取以下信息，请核对后保存：</p>';
+      html += '<div class="form-group"><label>名称</label><input id="add-name" value="' + escHtml(d.name || d.host || '') + '"></div>';
+      html += '<div class="form-row"><div class="form-group"><label>地址</label><input id="add-host" value="' + escHtml(d.host || '') + '"></div><div class="form-group"><label>SSH端口</label><input id="add-port" value="' + (d.port || 22) + '"></div></div>';
+      html += '<div class="form-row"><div class="form-group"><label>用户名</label><input id="add-user" value="' + escHtml(d.username || 'root') + '"></div><div class="form-group"><label>认证</label><select id="add-auth-method"><option value="key"' + (d.auth_method==='key'?' selected':'') + '>SSH密钥</option><option value="password"' + (d.auth_method==='password'?' selected':'') + '>密码</option></select></div></div>';
+      html += '<div id="auth-fields">';
+      if (d.auth_method === 'key' && d.key_content) {
+        html += '<div class="form-group"><label>SSH密钥</label><textarea id="add-key-content" rows="6" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:monospace;font-size:12px">' + escHtml(d.key_content) + '</textarea></div>';
+      } else {
+        html += '<div class="form-group"><label>密钥路径</label><input id="add-key-path" placeholder="/home/.ssh/id_rsa"></div>';
+      }
+      html += '</div>';
+      html += '<div class="form-row"><div class="form-group"><label>GPU型号</label><input id="add-gpu" value="' + escHtml(d.gpu_model || '') + '"></div><div class="form-group"><label>显存GB</label><input id="add-gpu-mem" type="number" value="' + (d.gpu_memory_gb || '') + '"></div></div>';
+      html += '<div class="form-row"><div class="form-group"><label>CPU核数</label><input id="add-cpu" type="number" value="' + (d.cpu_cores || '') + '"></div><div class="form-group"><label>内存GB</label><input id="add-ram" type="number" value="' + (d.ram_gb || '') + '"></div></div>';
+      html += '<div style="margin:12px 0"><strong>连接方式</strong></div>';
+      html += '<div class="toggle-group"><label><input type="checkbox" id="add-v2ray"> 有V2RayN</label><label><input type="checkbox" id="add-direct-proxy" checked> V2RayN时可直连</label><label><input type="checkbox" id="add-direct-no-proxy"> 无代理时直连</label></div>';
+      html += '<div id="verify-results" style="margin-top:12px"></div>';
+      html += '<div class="modal-actions"><button class="btn-primary" onclick="verifyAndSave()">验证并保存</button><button onclick="closeModal()">取消</button></div>';
+
+      showModal(html);
+      document.getElementById('add-auth-method').onchange = function() {
+        var c = document.getElementById('auth-fields');
+        if (this.value === 'key') {
+          if (d.key_content) {
+            c.innerHTML = '<div class="form-group"><label>SSH密钥</label><textarea id="add-key-content" rows="6" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:monospace;font-size:12px">' + escHtml(d.key_content) + '</textarea></div>';
+          } else {
+            c.innerHTML = '<div class="form-group"><label>密钥路径</label><input id="add-key-path" placeholder="/home/.ssh/id_rsa"></div>';
+          }
+        } else {
+          c.innerHTML = '<div class="form-group"><label>密码</label><input id="add-password" type="password"></div>';
+        }
+      };
+    }
 
     function showAddServer() {
       showModal('<h2>添加服务器</h2>'+

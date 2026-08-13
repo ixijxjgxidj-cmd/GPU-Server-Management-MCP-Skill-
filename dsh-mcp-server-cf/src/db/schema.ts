@@ -65,4 +65,7 @@ export interface DBReachability {
 export interface Env {
   DB: D1Database;
   PING_API_KEY?: string;
+  AI_MODEL_API_URL?: string;
+  AI_MODEL_NAME?: string;
+  AI_MODEL_API_KEY?: string;
 }

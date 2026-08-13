@@ -7,6 +7,7 @@ import serversApi from './api/servers';
 import proxiesApi from './api/proxies';
 import verifyApi from './api/verify';
 import usageApi from './api/usage';
+import aiApi from './api/ai';
 import { tcpPing } from './probe/ping';
 import { getServerById, updateServerStatus } from './db/queries';
 import { HTML as frontendHtml } from './frontend/html';
@@ -59,6 +60,7 @@ app.route('/api/servers', serversApi);
 app.route('/api/proxies', proxiesApi);
 app.route('/api/verify-server', verifyApi);
 app.route('/api/usage', usageApi);
+app.route('/api/ai', aiApi);
 
 // === Frontend ===
 app.get('/', (c) => {
