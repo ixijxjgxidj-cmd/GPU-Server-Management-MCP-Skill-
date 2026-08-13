@@ -25,6 +25,9 @@ import { testProxyTool } from './test_proxy';
 import { findBestServerTool } from './find_best_server';
 import { verifyConnectivityTool } from './verify_connectivity';
 import { getClusterSummaryTool } from './get_cluster_summary';
+import { batchQueryServersTool } from './batch_query_servers';
+import { batchAssignServersTool } from './batch_assign_servers';
+import { batchProbeServersTool } from './batch_probe_servers';
 
 export const toolRegistry: McpTool[] = [
   // Basic CRUD — servers
@@ -50,6 +53,11 @@ export const toolRegistry: McpTool[] = [
   // High-level workflow tools
   findBestServerTool,
   getClusterSummaryTool,
+
+  // Multi-server orchestration tools
+  batchQueryServersTool,
+  batchAssignServersTool,
+  batchProbeServersTool,
 ];
 
 export function getTool(name: string): McpTool | undefined {
