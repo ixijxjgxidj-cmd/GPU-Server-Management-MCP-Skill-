@@ -55,6 +55,7 @@ export interface ServerDetail {
   reachable_proxies: Array<{ id: string; name: string; latency_ms: number | null }>;
   tags: string[];
   task: ServerTaskInfo;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -112,6 +113,7 @@ export function dbServerToDetail(
       task_started_at: db.task_started_at,
       is_busy: db.current_agent !== null,
     },
+    notes: db.notes,
     created_at: db.created_at,
     updated_at: db.updated_at,
   };

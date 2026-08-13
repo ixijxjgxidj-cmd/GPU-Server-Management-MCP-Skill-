@@ -318,7 +318,13 @@ export const HTML = `<!DOCTYPE html>
         const resp = await fetch('/api/servers/probe/'+id, { method:'POST' });
         const result = await resp.json();
         if (result.success) {
-          showToast('✅ 探测完成 (' + (result.latency_ms||'超时') + 'ms)', 'success');
+          var ms = result.latency_ms;
+          var msText = (ms !== null && ms !== undefined) ? ms+'ms' : '超时';
+          if (result.reachable) {
+            showToast('✅ ' + server.name + ' ' + msText, 'success');
+          } else {
+            showToast('⚠️ ' + server.name + ' 不可达 (' + msText + ') ' + (result.error||''), 'error');
+          }
           loadServers();
         } else {
           showToast('❌ 探测失败: ' + (result.error || '未知错误'), 'error');
@@ -468,6 +474,7 @@ export const HTML = `<!DOCTYPE html>
       setVal('add-cpu', d.cpu_cores || '');
       setVal('add-ram', d.ram_gb || '');
       if (d.vendor_url) setVal('add-vendor-url', d.vendor_url);
+      if (d.notes) setVal('add-notes', d.notes);
 
       // Handle auth: fill key or password
       if (d.auth_method === 'key' && d.key_content) {
@@ -521,6 +528,7 @@ export const HTML = `<!DOCTYPE html>
         '<div class="form-row"><div class="form-group"><label>GPU型号</label><input id="add-gpu" placeholder="NVIDIA A100"></div><div class="form-group"><label>显存GB</label><input id="add-gpu-mem" type="number"></div></div>' +
         '<div class="form-row"><div class="form-group"><label>CPU核数</label><input id="add-cpu" type="number"></div><div class="form-group"><label>内存GB</label><input id="add-ram" type="number"></div></div>' +
         '<div class="form-group"><label>厂商URL</label><input id="add-vendor-url" placeholder="https://cloud.example.com"></div>' +
+        '<div class="form-group"><label>备注</label><textarea id="add-notes" rows="2" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-size:13px;resize:vertical" placeholder="服务器的用途、注意事项等"></textarea></div>' +
         '<div style="margin:12px 0"><strong>连接方式</strong></div>' +
         '<div class="toggle-group"><label><input type="checkbox" id="add-v2ray"> 有V2RayN</label><label><input type="checkbox" id="add-direct-proxy" checked> V2RayN时可直连</label><label><input type="checkbox" id="add-direct-no-proxy"> 无代理时直连</label></div>' +
         '<div id="verify-results" style="margin-top:12px"></div>' +
@@ -618,6 +626,7 @@ export const HTML = `<!DOCTYPE html>
         cpu_cores: document.getElementById('add-cpu').value?parseInt(document.getElementById('add-cpu').value):null, ram_gb: document.getElementById('add-ram').value?parseInt(document.getElementById('add-ram').value):null,
         v2ray_available: document.getElementById('add-v2ray').checked, direct_when_proxy_available: document.getElementById('add-direct-proxy').checked, direct_when_no_proxy: document.getElementById('add-direct-no-proxy').checked,
         vendor_url: vendorUrlEl ? (vendorUrlEl.value||null) : null,
+        notes: document.getElementById('add-notes') ? document.getElementById('add-notes').value||null : null,
       };
       if (!serverData.name||!serverData.host||!serverData.username) { resultsDiv.innerHTML += '<p style="color:var(--red)">请填写必填字段</p>'; return; }
       try {
@@ -716,6 +725,16 @@ export const HTML = `<!DOCTYPE html>
         addInput('磁盘(GB)', 'edit-disk', 'number', s.capabilities?.disk_gb||s.disk_gb||'');
         addInput('厂商URL', 'edit-vendor-url', 'text', s.vendor_url||'');
 
+        // Notes field
+        var notesGroup = document.createElement('div'); notesGroup.className = 'form-group';
+        var notesLabel = document.createElement('label'); notesLabel.textContent = '备注';
+        notesGroup.appendChild(notesLabel);
+        var notesTa = document.createElement('textarea'); notesTa.id = 'edit-notes';
+        notesTa.style.cssText = 'width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-size:13px;resize:vertical;min-height:40px';
+        notesTa.textContent = s.notes||'';
+        notesGroup.appendChild(notesTa);
+        content.appendChild(notesGroup);
+
         // Connection mode toggles
         var connDiv = document.createElement('div');
         connDiv.innerHTML = '<div style="margin:12px 0"><strong>连接方式</strong></div>'+
@@ -751,6 +770,7 @@ export const HTML = `<!DOCTYPE html>
         ram_gb: document.getElementById('edit-ram').value ? parseInt(document.getElementById('edit-ram').value) : null,
         disk_gb: document.getElementById('edit-disk').value ? parseInt(document.getElementById('edit-disk').value) : null,
         vendor_url: document.getElementById('edit-vendor-url').value||null,
+        notes: document.getElementById('edit-notes') ? document.getElementById('edit-notes').value||null : null,
         v2ray_available: document.getElementById('edit-v2ray').checked ? 1 : 0,
         direct_when_proxy_available: document.getElementById('edit-direct-proxy').checked ? 1 : 0,
         direct_when_no_proxy: document.getElementById('edit-direct-no-proxy').checked ? 1 : 0,

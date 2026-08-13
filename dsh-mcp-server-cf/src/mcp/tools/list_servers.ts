@@ -28,6 +28,7 @@ export const listServersTool: McpTool = {
         direct_when_proxy_available: s.direct_when_proxy_available === 1,
         direct_when_no_proxy: s.direct_when_no_proxy === 1,
       }),
+      notes: s.notes,
       task: {
         current_task: s.current_task,
         current_agent: s.current_agent,

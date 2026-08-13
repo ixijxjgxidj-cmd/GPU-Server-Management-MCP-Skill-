@@ -57,6 +57,7 @@ app.post('/', async (c) => {
     ram_gb: body.ram_gb ?? null,
     disk_gb: body.disk_gb ?? null,
     default_proxy_id: body.default_proxy_id ?? null,
+    notes: body.notes ?? null,
     tags: body.tags ? JSON.stringify(body.tags) : null,
   });
   return c.json({ id }, 201);

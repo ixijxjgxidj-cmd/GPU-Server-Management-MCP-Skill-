@@ -26,6 +26,7 @@ export interface DBServer {
   current_task: string | null;   // What task is currently running (e.g. "train-llm", "inference-api")
   current_agent: string | null;  // Which agent is using this server (e.g. "deepseek-coder", "user-abc")
   task_started_at: string | null; // When the current task started
+  notes: string | null;  // User remarks/notes about the server
   created_at: string;
   updated_at: string;
 }

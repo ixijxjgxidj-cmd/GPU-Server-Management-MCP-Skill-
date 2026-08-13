@@ -30,14 +30,14 @@ export async function createServer(
     INSERT INTO servers (id, name, vendor_url, host, port, username, auth_method, key_path, key_content, password,
       v2ray_available, direct_when_proxy_available, direct_when_no_proxy,
       gpu_model, gpu_memory_gb, cpu_cores, ram_gb, disk_gb,
-      default_proxy_id, tags, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      default_proxy_id, tags, notes, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id, data.name, data.vendor_url, data.host, data.port, data.username, data.auth_method,
     data.key_path, data.key_content, data.password,
     data.v2ray_available, data.direct_when_proxy_available, data.direct_when_no_proxy,
     data.gpu_model, data.gpu_memory_gb, data.cpu_cores, data.ram_gb, data.disk_gb,
-    data.default_proxy_id, data.tags, now, now
+    data.default_proxy_id, data.tags, data.notes, now, now
   ).run();
   return id;
 }

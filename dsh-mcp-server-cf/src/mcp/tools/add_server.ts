@@ -27,6 +27,7 @@ export const addServerTool: McpTool = {
         disk_gb: { type: 'number', description: '磁盘大小（GB）。例如 1024、2048。' },
         default_proxy_id: { type: 'string', description: '默认代理ID（可选）。从 list_proxies 返回的 id 获取，设置后该服务器优先使用此代理。' },
         tags: { type: 'array', items: { type: 'string' }, description: '标签列表。用于分类和过滤，例如 ["training", "production"] 或 ["inference", "dev"]。' },
+        notes: { type: 'string', description: '备注信息。自由文本，可用于记录服务器的用途、注意事项等。' },
       },
       required: ['name', 'host', 'username', 'auth_method'],
     },
@@ -51,6 +52,7 @@ export const addServerTool: McpTool = {
       ram_gb: (args.ram_gb as number) ?? null,
       disk_gb: (args.disk_gb as number) ?? null,
       default_proxy_id: (args.default_proxy_id as string) ?? null,
+      notes: (args.notes as string) ?? null,
       tags: args.tags ? JSON.stringify(args.tags) : null,
     });
     return { content: [{ type: 'text', text: JSON.stringify({ id }) }] };
