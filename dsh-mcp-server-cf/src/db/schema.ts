@@ -88,4 +88,5 @@ export interface Env {
   AI_MODEL_API_URL?: string;
   AI_MODEL_NAME?: string;
   AI_MODEL_API_KEY?: string;
+  BRIDGE_TOKEN?: string;
 }

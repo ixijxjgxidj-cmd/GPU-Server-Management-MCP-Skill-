@@ -1,0 +1,11 @@
+[Unit]
+Description=Run DSH jump-box probe agent every 5 minutes
+
+[Timer]
+OnBootSec=90
+OnUnitActiveSec=300
+AccuracySec=15
+Unit=dsh-agent.service
+
+[Install]
+WantedBy=timers.target

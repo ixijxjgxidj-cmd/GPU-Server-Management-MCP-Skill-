@@ -8,6 +8,7 @@ import proxiesApi from './api/proxies';
 import verifyApi from './api/verify';
 import usageApi from './api/usage';
 import aiApi from './api/ai';
+import bridgeApi from './api/bridge';
 import { HTML as frontendHtml } from './frontend/html';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -60,6 +61,7 @@ app.route('/api/proxies', proxiesApi);
 app.route('/api/verify-server', verifyApi);
 app.route('/api/usage', usageApi);
 app.route('/api/ai', aiApi);
+app.route('/api/bridge', bridgeApi);
 
 // === Frontend ===
 app.get('/', (c) => {

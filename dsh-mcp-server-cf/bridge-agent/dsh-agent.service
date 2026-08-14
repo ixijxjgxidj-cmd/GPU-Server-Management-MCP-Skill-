@@ -1,0 +1,11 @@
+[Unit]
+Description=DSH jump-box probe agent (pull servers, SSH probe, report to Worker)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=DSH_AGENT_ENV=/etc/dsh-agent.env
+ExecStart=/usr/bin/python3 /opt/dsh-agent/dsh-agent.py
+# The probe is best-effort; a bad cycle should not spam the journal as failure.
+SuccessExitStatus=0 1

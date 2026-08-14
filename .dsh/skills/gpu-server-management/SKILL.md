@@ -129,7 +129,15 @@ busy shared card, the limit is VRAM — check `gpu_mem_free_gb`, not the card co
 
 ### Load freshness loop
 `plan_task_allocation` falls back to static specs when live load is missing and flags it in
-`stale_warnings`; allocations built on stale data can overcommit a busy machine. To refresh:
+`stale_warnings`; allocations built on stale data can overcommit a busy machine.
+
+**Load is normally kept fresh for you.** A probe agent on a jump-box
+(`cn-fj-qz-2.server.zakocloud.com`) runs every ~5 min: it pulls the server list from the Worker,
+SSHes into each (direct, else via a socks5 proxy), and writes back live load + online status. So
+`get_servers` usually already carries recent `load_age_sec`. Cloudflare Workers cannot SSH, so this
+jump-box is *how* load exists at all — see "Layer 4 · Jump-box probe agent".
+
+You only refresh by hand when the agent is down or you need a reading right now:
 
 ```
 refresh_load {}                          # get probe commands per server
@@ -209,6 +217,23 @@ df -BG / | awk 'NR==2{gsub(/G/,"",$2); print $2}'                        # disk_
 |------|------|
 | `verify_server_connectivity { server_id }` | Probe direct SSH + every proxy. Caches reachability that `get_servers` then returns as `reachable_proxies`. |
 | `list_proxies` / `add_proxy { name, host, ... }` / `remove_proxy { proxy_id }` | Manage the SOCKS5/HTTP relay pool. |
+
+### Jump-box probe agent (how live load exists)
+
+Cloudflare Workers can't open SSH sockets, so the Worker itself can never read a server's load. A
+small agent on a **jump-box** does it and pushes results back, on a timer (pull model):
+
+```
+[systemd timer, ~5 min]  →  GET /api/bridge/tasks  →  SSH-probe each server  →  POST /api/bridge/report
+```
+
+- The agent tries **direct SSH first, then each socks5 proxy** (via a ProxyCommand) — the same
+  reachability model as everything else. Whichever mode connects is cached as `reachable_proxies`.
+- Both `/api/bridge/*` endpoints require the `BRIDGE_TOKEN` secret; the jump-box reaches the Worker
+  through a socks5 proxy because it can't hit `workers.dev` directly.
+- Source + install steps live in the repo at `dsh-mcp-server-cf/bridge-agent/` (`dsh-agent.py`,
+  systemd `.service`/`.timer`, README). As an agent you normally **just consume the fresh load**
+  via `get_servers`; touch the jump-box only to add a probe target or debug a stale reading.
 
 ---
 
