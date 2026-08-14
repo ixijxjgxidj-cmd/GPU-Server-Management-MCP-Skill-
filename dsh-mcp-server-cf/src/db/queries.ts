@@ -1,4 +1,4 @@
-import type { DBServer, DBProxy, DBUsageLog, DBReachability } from './schema';
+import type { DBServer, DBProxy, DBUsageLog, DBReachability, DBServerNote } from './schema';
 import { v4 as uuid } from 'uuid';
 
 // ===== Server Queries =====
@@ -298,4 +298,36 @@ export async function setServerEnabled(db: D1Database, serverId: string, enabled
   const now = new Date().toISOString();
   await db.prepare('UPDATE servers SET enabled = ?, updated_at = ? WHERE id = ?')
     .bind(enabled ? 1 : 0, now, serverId).run();
+}
+
+export async function getServerNotes(
+  db: D1Database,
+  serverIds: string[]
+): Promise<Record<string, DBServerNote[]>> {
+  if (serverIds.length === 0) return {};
+  const placeholders = serverIds.map(() => '?').join(',');
+  const result = await db.prepare(
+    `SELECT * FROM server_notes WHERE server_id IN (${placeholders}) ORDER BY updated_at DESC`
+  ).bind(...serverIds).all<DBServerNote>();
+  const map: Record<string, DBServerNote[]> = {};
+  for (const n of result.results) {
+    (map[n.server_id] ??= []).push(n);
+  }
+  return map;
+}
+
+export async function upsertServerNote(
+  db: D1Database,
+  serverId: string,
+  entry: { topic: string; content: string; updated_by?: string }
+): Promise<void> {
+  const now = new Date().toISOString();
+  await db.prepare(`
+    INSERT INTO server_notes (server_id, topic, content, updated_by, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(server_id, topic) DO UPDATE SET
+      content = excluded.content,
+      updated_by = excluded.updated_by,
+      updated_at = excluded.updated_at
+  `).bind(serverId, entry.topic, entry.content, entry.updated_by ?? null, now).run();
 }
