@@ -148,6 +148,19 @@ refresh_load {}                          # get probe commands per server
 
 `get_servers` reports `load_age_sec` per server (`null` = never probed).
 
+### Training-environment versions and live CPU hogs
+
+The probe agent also captures each server's software stack and its busiest processes, so you can
+pick a machine that already has the right environment and see what's competing for it:
+
+- `python_version` — e.g. `3.12.3`
+- `torch_version` — e.g. `2.3.1+cu121` (empty if PyTorch isn't installed)
+- `cuda_version` — driver CUDA from `nvidia-smi`, else `nvcc` release, e.g. `12.4`
+- `top_cpu_tasks` — live top-3 by CPU: `[{cpu, mem, cmd}, …]` (`cpu`/`mem` are percentages)
+
+Use these to route: don't send a Torch job to a box with no `torch_version`; treat a server whose
+`top_cpu_tasks` shows a `python` process at ~100% as already busy even if `running_tasks` looks low.
+
 ### Disk share
 
 `plan_disk_share` returns `sshfs.prep_key_cmd` + `sshfs.mount_cmd` — run both **on the needy

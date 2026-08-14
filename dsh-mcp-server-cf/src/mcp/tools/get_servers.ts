@@ -11,6 +11,16 @@ function encodeKeyB64(keyContent: string | null): string | null {
   return btoa(keyContent);
 }
 
+/** Parse the stored top_cpu_tasks JSON defensively (never throw into the response). */
+function safeParseTasks(raw: string): Array<{ cpu?: number; mem?: number; cmd?: string }> {
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v.slice(0, 3) : [];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * The one-shot "how do I connect" tool.
  * Returns everything an agent needs to SSH into a server in a single call:
@@ -99,6 +109,10 @@ export const getServersTool: McpTool = {
         ram_free_gb: s.ram_free_gb,
         disk_free_gb: s.disk_free_gb,
         running_tasks: s.running_tasks,
+        python_version: s.python_version,
+        torch_version: s.torch_version,
+        cuda_version: s.cuda_version,
+        top_cpu_tasks: s.top_cpu_tasks ? safeParseTasks(s.top_cpu_tasks) : [],
         load_age_sec: loadAgeSec(s, now),
         notes_entries: (notesMap[s.id] ?? []).map(n => ({
           topic: n.topic, content: n.content, updated_by: n.updated_by, updated_at: n.updated_at,

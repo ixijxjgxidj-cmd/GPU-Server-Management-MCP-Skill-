@@ -14,6 +14,7 @@ function baseServer(over: Partial<DBServer> = {}): DBServer {
     gpu_util_pct: null, gpu_mem_free_gb: null, ram_free_gb: null, disk_free_gb: null,
     running_tasks: null, load_updated_at: null,
     gpu_sharing_mode: 'exclusive',
+    python_version: null, torch_version: null, cuda_version: null, top_cpu_tasks: null,
     created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
     ...over,
   };

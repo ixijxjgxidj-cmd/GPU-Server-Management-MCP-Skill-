@@ -168,12 +168,23 @@ def key_file_for(t):
     return None
 
 
-def build_ssh_cmd(t, step, probe):
+def build_ssh_cmd(t, step, probe, legacy=False):
     host, port, user = t['host'], int(t['port']), t['username']
     common = ['ssh', '-p', str(port),
               '-o', 'BatchMode=yes' if t['auth_method'] == 'key' else 'BatchMode=no',
               '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null',
               '-o', f'ConnectTimeout={SSH_TIMEOUT}', '-o', 'NumberOfPasswordPrompts=1']
+    if legacy:
+        # Compatibility profile for non-OpenSSH servers (Go/Dropbear/embedded and
+        # older sshd): re-enable ssh-rsa/SHA-1, legacy KEX, and CBC/3DES so the
+        # modern client can still negotiate. Harmless against modern servers.
+        common += [
+            '-o', 'HostKeyAlgorithms=+ssh-rsa,ssh-dss',
+            '-o', 'PubkeyAcceptedAlgorithms=+ssh-rsa,ssh-dss',
+            '-o', 'KexAlgorithms=+diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1',
+            '-o', 'Ciphers=+aes256-cbc,aes128-cbc,3des-cbc',
+            '-o', 'MACs=+hmac-sha1,hmac-sha1-96',
+        ]
     if step['mode'] == 'socks5':
         pc = f'python3 {SOCKS_PC} {step["proxy_host"]} {step["proxy_port"]} ' \
              f'{step.get("proxy_username") or ""} {step.get("proxy_password") or ""} %h %p'
@@ -185,26 +196,45 @@ def build_ssh_cmd(t, step, probe):
     return common
 
 
+# Signals that the failure was protocol/algorithm negotiation, not auth or network
+# — i.e. the server is a non-OpenSSH dialect worth retrying with the legacy profile.
+_LEGACY_HINTS = (
+    'no matching', 'their offer', 'key exchange', 'kex', 'cipher', 'mac ',
+    'host key type', 'unable to negotiate', 'protocol', 'bad packet length',
+    'incompatible', 'invalid format',
+)
+
+
+def _needs_legacy(stderr):
+    s = (stderr or '').lower()
+    return any(h in s for h in _LEGACY_HINTS)
+
+
 def run_probe(t, probe):
-    """Try each ssh_plan step until one connects. Returns (result, connected_via)."""
+    """Try each ssh_plan step until one connects. For every step, try the modern
+    OpenSSH profile first, then a legacy-compat profile if negotiation looks like
+    a non-OpenSSH server. Returns (result, connected_via, err)."""
     last_err = ''
     for step in t.get('ssh_plan', [{'mode': 'direct'}]):
-        cmd = build_ssh_cmd(t, step, probe)
-        try:
-            if t['auth_method'] == 'password' and t.get('password'):
-                # feed password via sshpass-like approach unavailable; use SSH_ASKPASS
-                env = dict(os.environ)
-                r = _ssh_with_password(cmd, t['password'])
-            else:
-                r = subprocess.run(cmd, capture_output=True, text=True, timeout=SSH_TIMEOUT + 15)
-        except subprocess.TimeoutExpired:
-            last_err = f'{step["mode"]}: timeout'
-            continue
-        out = (r.stdout or '')
-        if r.returncode == 0 and 'HOSTNAME=' in out:
-            via = 'direct' if step['mode'] == 'direct' else step.get('proxy_id')
-            return parse_probe(out), via, ''
-        last_err = f'{step["mode"]}: rc={r.returncode} {(r.stderr or "")[:120]}'
+        for legacy in (False, True):
+            cmd = build_ssh_cmd(t, step, probe, legacy=legacy)
+            try:
+                if t['auth_method'] == 'password' and t.get('password'):
+                    r = _ssh_with_password(cmd, t['password'])
+                else:
+                    r = subprocess.run(cmd, capture_output=True, text=True, timeout=SSH_TIMEOUT + 15)
+            except subprocess.TimeoutExpired:
+                last_err = f'{step["mode"]}{"/legacy" if legacy else ""}: timeout'
+                continue
+            out = (r.stdout or '')
+            if r.returncode == 0 and 'HOSTNAME=' in out:
+                via = 'direct' if step['mode'] == 'direct' else step.get('proxy_id')
+                return parse_probe(out), via, ''
+            last_err = f'{step["mode"]}{"/legacy" if legacy else ""}: rc={r.returncode} {(r.stderr or "")[:120]}'
+            # Only bother with the legacy retry when the modern attempt failed on
+            # negotiation; auth/network failures won't be fixed by legacy options.
+            if not legacy and not _needs_legacy(r.stderr):
+                break
     return None, None, last_err
 
 
@@ -231,15 +261,36 @@ def _to_int(v):
         return None
 
 
+def _to_float(v):
+    try:
+        return round(float(str(v).strip()), 1)
+    except Exception:
+        return None
+
+
 def parse_probe(out):
     kv = {}
+    top_cpu = []
     for line in out.splitlines():
-        m = re.match(r'^([A-Z_]+)=(.*)$', line.strip())
+        line = line.strip()
+        # TOPCPU repeats (up to 3 lines): "TOPCPU=<%cpu>|<%mem>|<cmd>"
+        if line.startswith('TOPCPU='):
+            body = line[len('TOPCPU='):]
+            parts = body.split('|', 2)
+            if len(parts) == 3:
+                top_cpu.append({
+                    'cpu': _to_float(parts[0]),
+                    'mem': _to_float(parts[1]),
+                    'cmd': parts[2][:60],
+                })
+            continue
+        m = re.match(r'^([A-Z_]+)=(.*)$', line)
         if m:
             kv[m.group(1)] = m.group(2).strip()
     gpu_count = _to_int(kv.get('GPU_COUNT')) or 0
     load = {}
     hw = {}
+    env = {}
     if _to_int(kv.get('GPU_UTIL')) is not None:
         load['gpu_util_pct'] = _to_int(kv.get('GPU_UTIL'))
     if _to_int(kv.get('GPU_MEM_FREE')) is not None:
@@ -259,7 +310,16 @@ def parse_probe(out):
         hw['ram_gb'] = _to_int(kv.get('RAM'))
     if _to_int(kv.get('DISK')) is not None:
         hw['disk_gb'] = _to_int(kv.get('DISK'))
-    return {'load': load, 'hardware': hw}
+    # Training-environment versions (empty string when absent on the target).
+    if kv.get('PYVER'):
+        env['python_version'] = kv['PYVER']
+    if kv.get('TORCH'):
+        env['torch_version'] = kv['TORCH']
+    # CUDA: prefer driver CUDA (nvidia-smi), fall back to nvcc release.
+    cuda = kv.get('CUDA') or kv.get('NVCC')
+    if cuda:
+        env['cuda_version'] = cuda
+    return {'load': load, 'hardware': hw, 'env': env, 'top_cpu_tasks': top_cpu[:3]}
 
 
 def main():
@@ -278,8 +338,9 @@ def main():
                 'server_id': t['server_id'], 'host': t['host'], 'online': True,
                 'ping_ms': ping_ms, 'connected_via': via,
                 'load': parsed['load'], 'hardware': parsed['hardware'],
+                'env': parsed['env'], 'top_cpu_tasks': parsed['top_cpu_tasks'],
             })
-            log(f"OK  {t['name']} via {via} ({ping_ms}ms) load={parsed['load']}")
+            log(f"OK  {t['name']} via {via} ({ping_ms}ms) load={parsed['load']} env={parsed['env']}")
         else:
             results.append({
                 'server_id': t['server_id'], 'host': t['host'], 'online': False,

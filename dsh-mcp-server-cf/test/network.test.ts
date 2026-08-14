@@ -12,7 +12,7 @@ function srv(id: string, over: Partial<DBServer> = {}): DBServer {
     default_proxy_id: null, tags: null, current_task: null, current_agent: null, task_started_at: null,
     notes: null, enabled: 1, ssh_banner: null, os_hint: null,
     gpu_util_pct: null, gpu_mem_free_gb: null, ram_free_gb: null, disk_free_gb: null, running_tasks: null,
-    load_updated_at: null, gpu_sharing_mode: 'shared', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+    load_updated_at: null, gpu_sharing_mode: 'shared', python_version: null, torch_version: null, cuda_version: null, top_cpu_tasks: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
     ...over,
   };
 }

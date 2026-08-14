@@ -38,6 +38,10 @@ export interface DBServer {
   running_tasks: number | null;
   load_updated_at: string | null;
   gpu_sharing_mode: 'shared' | 'exclusive'; // shared (default): meter GPU by free VRAM; exclusive: whole cards
+  python_version: string | null;   // e.g. "3.12.3"
+  torch_version: string | null;    // e.g. "2.3.1+cu121"
+  cuda_version: string | null;     // driver CUDA, e.g. "12.4"
+  top_cpu_tasks: string | null;    // JSON array [{cpu:number, mem:number, cmd:string}] — live top-3 by CPU
   created_at: string;
   updated_at: string;
 }

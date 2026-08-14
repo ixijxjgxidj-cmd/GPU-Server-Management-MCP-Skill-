@@ -35,6 +35,15 @@ const PROBE_SCRIPT = [
   'echo "RAM_FREE=$(free -g 2>/dev/null | awk \'/^Mem:/{print $7}\')"',
   'echo "DISK=$(df -BG / 2>/dev/null | awk \'NR==2{gsub(/G/,\\"\\",$2); print $2}\')"',
   'echo "DISK_FREE=$(df -BG / 2>/dev/null | awk \'NR==2{gsub(/G/,\\"\\",$4); print $4}\')"',
+  // Training-environment versions (semi-static; empty string if absent).
+  // NB: keep NO double-quotes inside these $(...) — the whole line is echo "...".
+  'echo "PYVER=$(python3 --version 2>&1 | awk \'{print $2}\')"',
+  'echo "TORCH=$(python3 -c \'import torch;print(torch.__version__)\' 2>/dev/null)"',
+  // CUDA: prefer driver CUDA from nvidia-smi, fall back to nvcc.
+  'echo "CUDA=$(nvidia-smi 2>/dev/null | grep -oE \'CUDA Version: [0-9.]+\' | awk \'{print $3}\' | head -1)"',
+  'echo "NVCC=$(nvcc --version 2>/dev/null | grep -oE \'release [0-9.]+\' | awk \'{print $2}\')"',
+  // Live top-3 CPU processes: "TOPCPU=<%cpu>|<%mem>|<cmd>" one line each.
+  'ps -eo pcpu,pmem,comm --sort=-pcpu 2>/dev/null | awk \'NR>1 && NR<=4 {printf "TOPCPU=%s|%s|%s\\n",$1,$2,$3}\'',
 ].join('; ');
 
 function authOk(c: { req: { header: (k: string) => string | undefined; query: (k: string) => string | undefined } }, env: Env): boolean {
@@ -103,6 +112,8 @@ app.post('/report', async (c) => {
       connected_via?: string; // 'direct' | proxy_id
       load?: { gpu_util_pct?: number; gpu_mem_free_gb?: number; ram_free_gb?: number; disk_free_gb?: number; running_tasks?: number };
       hardware?: { gpu_model?: string; gpu_count?: number; cpu_cores?: number; ram_gb?: number; disk_gb?: number };
+      env?: { python_version?: string; torch_version?: string; cuda_version?: string };
+      top_cpu_tasks?: Array<{ cpu?: number; mem?: number; cmd?: string }>;
     }>;
   } | null;
 
@@ -139,6 +150,16 @@ app.post('/report', async (c) => {
         const hw = r.hardware ?? {};
         for (const k of ['gpu_model', 'gpu_count', 'cpu_cores', 'ram_gb', 'disk_gb'] as const) {
           if (hw[k] !== undefined && hw[k] !== null && hw[k] !== '') updates[k] = hw[k];
+        }
+        // Training-environment versions (semi-static; only overwrite when detected).
+        const env = r.env ?? {};
+        const envMap = { python_version: env.python_version, torch_version: env.torch_version, cuda_version: env.cuda_version };
+        for (const [col, val] of Object.entries(envMap)) {
+          if (val !== undefined && val !== null && val !== '') updates[col] = val;
+        }
+        // Live top-3 CPU tasks snapshot (stored as JSON text).
+        if (Array.isArray(r.top_cpu_tasks)) {
+          updates.top_cpu_tasks = JSON.stringify(r.top_cpu_tasks.slice(0, 3));
         }
         if (Object.keys(updates).length > 0) {
           updates.load_updated_at = now;
