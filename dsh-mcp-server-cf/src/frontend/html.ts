@@ -114,6 +114,16 @@ export const HTML = `<!DOCTYPE html>
         <button class="btn-primary" onclick="showAddServer()">+ 添加</button>
       </div>
     </div>
+    <div id="sharingBar" style="margin:0 24px 12px;padding:12px 16px;border:1px solid var(--border);border-radius:10px;background:var(--card);display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div style="flex:1;min-width:220px">
+        <div style="font-weight:600;margin-bottom:2px">GPU 均衡分配模式（全局统一切换）</div>
+        <div id="sharingDesc" style="font-size:12px;color:var(--text-dim);line-height:1.5"></div>
+      </div>
+      <div class="toggle-switch" style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <button id="modeSharedBtn" onclick="applyGlobalSharingMode('shared')" style="padding:8px 14px;border:none;cursor:pointer;background:transparent;color:var(--text);font-size:13px">🤝 共享（推理）</button>
+        <button id="modeExclusiveBtn" onclick="applyGlobalSharingMode('exclusive')" style="padding:8px 14px;border:none;cursor:pointer;background:transparent;color:var(--text);font-size:13px">🔒 独占（训练）</button>
+      </div>
+    </div>
     <div class="grid" id="serverGrid"></div>
   </div>
   <div id="page-proxies" class="page" style="display:none">
@@ -204,6 +214,61 @@ export const HTML = `<!DOCTYPE html>
       var grid = document.getElementById('serverGrid');
       grid.innerHTML = '';
       [...online, ...idle, ...offline, ...disabled].forEach(function(s) { grid.appendChild(createServerCard(s)); });
+      renderSharingBar();
+    }
+
+    // Reflect the fleet's GPU sharing mode and let the user flip every server at once.
+    function renderSharingBar() {
+      var gpuServers = servers.filter(function(s){ return s.gpu_count && s.gpu_count > 0; });
+      var descEl = document.getElementById('sharingDesc');
+      var sharedBtn = document.getElementById('modeSharedBtn');
+      var exclBtn = document.getElementById('modeExclusiveBtn');
+      if (!descEl || !sharedBtn || !exclBtn) return;
+      var nShared = gpuServers.filter(function(s){ return (s.gpu_sharing_mode||'shared') === 'shared'; }).length;
+      var nExcl = gpuServers.filter(function(s){ return s.gpu_sharing_mode === 'exclusive'; }).length;
+      // Highlight the active side only when the whole GPU fleet agrees.
+      var accent = '#2563eb';
+      sharedBtn.style.background = (nExcl === 0 && nShared > 0) ? accent : 'transparent';
+      sharedBtn.style.color = (nExcl === 0 && nShared > 0) ? '#fff' : 'var(--text)';
+      exclBtn.style.background = (nShared === 0 && nExcl > 0) ? accent : 'transparent';
+      exclBtn.style.color = (nShared === 0 && nExcl > 0) ? '#fff' : 'var(--text)';
+      if (gpuServers.length === 0) {
+        descEl.textContent = '当前没有已登记 GPU 的服务器。填好某台机器的 GPU 卡数后，这里即可统一切换分配模式。';
+      } else {
+        descEl.innerHTML = '<b>共享</b>：多任务按空闲显存挤在同一张卡上，适合推理/轻量任务；<b>独占</b>：一个任务占满整卡（空闲卡数 = 总卡数 − 运行任务数），适合训练。'
+          + '<br>当前 ' + gpuServers.length + ' 台 GPU 机器中：共享 ' + nShared + ' 台、独占 ' + nExcl + ' 台。点右侧按钮可一键把全部 GPU 机器切到同一模式。';
+      }
+    }
+
+    async function applyGlobalSharingMode(mode) {
+      var gpuServers = servers.filter(function(s){ return s.gpu_count && s.gpu_count > 0; });
+      var targets = gpuServers.filter(function(s){ return (s.gpu_sharing_mode||'shared') !== mode; });
+      if (gpuServers.length === 0) { alert('当前没有已登记 GPU 的服务器，无法切换分配模式。'); return; }
+      if (targets.length === 0) {
+        var label = mode === 'shared' ? '共享' : '独占';
+        alert('全部 GPU 服务器已经处于「' + label + '」模式。');
+        return;
+      }
+      var modeLabel = mode === 'shared' ? '共享（推理）' : '独占（训练）';
+      if (!confirm('将全部 ' + gpuServers.length + ' 台 GPU 服务器统一切换为「' + modeLabel + '」模式？（' + targets.length + ' 台需要更新）')) return;
+      var sharedBtn = document.getElementById('modeSharedBtn');
+      var exclBtn = document.getElementById('modeExclusiveBtn');
+      if (sharedBtn) sharedBtn.disabled = true;
+      if (exclBtn) exclBtn.disabled = true;
+      try {
+        var results = await Promise.all(targets.map(function(s){
+          return API.updateServer(s.id, { gpu_sharing_mode: mode }).then(function(){ s.gpu_sharing_mode = mode; return true; }).catch(function(){ return false; });
+        }));
+        var ok = results.filter(Boolean).length;
+        var fail = results.length - ok;
+        renderSharingBar();
+        renderServers();
+        if (fail > 0) alert('已切换 ' + ok + ' 台，' + fail + ' 台失败，请重试。');
+      } finally {
+        if (sharedBtn) sharedBtn.disabled = false;
+        if (exclBtn) exclBtn.disabled = false;
+        loadServers();
+      }
     }
 
     function wasRecentlyUsed(server) {
@@ -244,6 +309,9 @@ export const HTML = `<!DOCTYPE html>
       }
       addInfoRow('地址', s.host+':'+s.port);
       addInfoRow('GPU', s.gpu_model||'N/A');
+      if (s.gpu_count && s.gpu_count > 0) {
+        addInfoRow('GPU分配', (s.gpu_sharing_mode === 'exclusive' ? '🔒 独占(训练)' : '🤝 共享(推理)') + ' · ' + s.gpu_count + '卡');
+      }
       addInfoRow('CPU', s.cpu_cores?s.cpu_cores+'核':'N/A');
       addInfoRow('内存', s.ram_gb?s.ram_gb+'GB':'N/A');
       addInfoRow('Ping', s.status_ping_ms?s.status_ping_ms+'ms':'未探测');
