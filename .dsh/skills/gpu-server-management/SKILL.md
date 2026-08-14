@@ -5,7 +5,23 @@ description: Use when you need a GPU server to train, infer, or run any compute 
 
 # GPU Server Management
 
-12 MCP tools in 4 layers. **Layer 1 handles most requests.** Read further only when Layer 1 is not enough.
+A shared registry that lets you **drive many remote machines as one pool**. The database is
+**collective memory**: what one agent configures and records, every later agent reads back — so
+setup work is never repeated and machines cooperate instead of being used one at a time.
+
+**What this unlocks — the reason to reach for these tools:**
+
+| Goal | Tool | In one line |
+|------|------|-------------|
+| **Spread work** across machines | `plan_task_allocation` | Queue N training/inference jobs onto whatever GPU servers are free, balanced by real load. |
+| **Borrow disk** | `plan_disk_share` | Mount a disk-rich machine onto one that ran out of space (turn a peer into a cloud disk). |
+| **Route around a bad network** | `plan_network_relay` | Accelerate a slow/blocked download through a proxy, or relay the file via a healthy server. |
+| **Teach the next agent** | `upsert_server { notes_entry }` | Write back what you set up (global proxy, CUDA env, mounts) so the next call returns it. |
+
+So a typical multi-server session is: **read the pool → act → write back what you changed.**
+The last step is what makes the pool smarter over time — never skip it.
+
+12 tools in 4 layers. **Layer 1 handles most requests.** Read further only when Layer 1 is not enough.
 
 > Tools appear as `mcp__dsh-mcp-server__<name>`. Call by short name; the prefix is automatic.
 
@@ -37,9 +53,11 @@ chmod 600 /tmp/dsh_<server_id>
 ssh -i /tmp/dsh_<server_id> <username>@<host> -p <port>
 ```
 
-**Before connecting, read that server's `notes_entries`** — it holds operational knowledge other
-agents recorded (global proxy in use, CUDA env, existing mounts). Skipping it means rediscovering
-work already done.
+**Before connecting, read that server's `notes_entries`** — this is knowledge earlier agents wrote
+back about *this exact machine*: a global proxy already running, the CUDA env, existing mounts,
+credentials quirks. It is the whole point of the shared registry. Acting without reading it means
+re-doing work that is already done, or fighting a config another agent deliberately set. When you
+finish, write your own back (Layer 3, "Record what you configure").
 
 ### SSH fallback ladder
 
@@ -65,6 +83,35 @@ Try in order; stop at the first that connects.
 | Load data is stale | `refresh_load { server_ids? }` | per-server probe commands + credentials |
 
 **These tools plan; they never execute.** They return commands. You run them over SSH.
+
+### Worked scenarios
+
+**A · 8 tasks, several GPU machines — spread them.**
+```
+refresh_load {}            → run the probes over SSH, upsert_server the results   # optional but recommended
+plan_task_allocation { tasks: [ {id:"t1",gpu_count:1,min_gpu_memory_gb:24}, ... {id:"t8", ...} ] }
+  → recommended_allocation maps every task to a server; run each over SSH.
+  → any task in `unassignable`? read its reason; free a machine, relax the spec, or queue it.
+```
+Balance is real only on fresh load — refresh first, or trust `stale_warnings` at your own risk.
+
+**B · A machine is out of disk — borrow another's.**
+```
+plan_disk_share { needy_server_id, need_gb: 200, mode: "sshfs" }
+  → returns a disk-rich reachable provider + prep_key_cmd + mount_cmd
+  → run BOTH on the needy machine; it now has the peer's space mounted like a cloud disk.
+  → umount_cmd when done.
+```
+
+**C · A download is slow or blocked — accelerate or relay.**
+```
+plan_network_relay { target_server_id, resource_url: "https://…/model.tar" }
+  → proxy_acceleration.commands present? run them on the target (fastest, no 2nd machine).
+  → only jump_relay.steps? download on the healthy server, then scp -3 to the target.
+```
+
+Each plan returns commands only — you SSH in and run them, then record any lasting setup with
+`upsert_server { notes_entry }` so the next agent inherits it.
 
 ### GPU sharing mode
 
@@ -110,15 +157,23 @@ acceleration, since it needs no second machine.
 
 ## Layer 3 — Register and update
 
+**`host` (IP/domain) is the sole identity of a server.** `upsert_server` looks up by `host`: same
+host → updates that record, new host → creates one. This is deliberate — after you configure a
+machine's environment you just `upsert_server { host, ... }` and it lands on the right record
+whether or not it already exists, with no ID lookup and no risk of a duplicate.
+
 | Tool | When |
 |------|------|
-| `upsert_server { host, ... }` | Register or update in one call, keyed by `host` (IP/domain). Same host → update, new host → create. New servers also require `name`, `username`, `auth_method`. Pass `key_content` as **plaintext PEM** (the server base64-encodes it on read). |
+| `upsert_server { host, ... }` | Register or update in one call, keyed by `host`. New servers also require `name`, `username`, `auth_method`. Pass `key_content` as **plaintext PEM** (the server base64-encodes it on read). |
 | `update_server { server_id, updates }` | Change fields by ID, including `enabled` (`1` visible / `0` hidden). |
 | `remove_server { server_id }` | Irreversible — confirm with the user first. |
 
-### Record what you configure
+### Record what you configure — the write-back habit
 
-After setting up anything reusable on a server, write it back:
+The registry only stays useful if agents feed it. **Any time you set up something on a machine that
+a later agent would otherwise have to rediscover, write it back with a `notes_entry`.** Example: you
+configure a global proxy so `pip`/`git` route through it — record that, and the next agent's
+`get_servers` call returns it under `notes_entries`, so it won't re-configure or fight your setup.
 
 ```yaml
 upsert_server {
@@ -129,7 +184,9 @@ upsert_server {
 ```
 
 Same `topic` overwrites; different topics accumulate. Other agents read these as `notes_entries`.
-Use stable topics: `global_proxy`, `cuda_env`, `disk_mount`, `dataset_path`.
+Use stable topics so updates land on the same entry: `global_proxy`, `cuda_env`, `disk_mount`,
+`dataset_path`. Write back **live load** the same way (`gpu_util_pct`, `gpu_mem_free_gb`,
+`running_tasks`, …) so `plan_task_allocation` balances on truth, not stale specs.
 
 ### Fill in hardware after registering
 
