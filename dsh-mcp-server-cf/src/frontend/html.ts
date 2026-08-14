@@ -731,32 +731,35 @@ export const HTML = `<!DOCTYPE html>
         : document.getElementById('add-host').value;
       var port = isTunnel ? 22 : (parseInt(document.getElementById('add-port').value) || 22);
       const resultsDiv = document.getElementById('verify-results');
-      if (isTunnel) {
-        // CF tunnel can't be TCP-pinged from the Worker; just validate the field.
-        resultsDiv.innerHTML = '<div class="verify-step" style="color:var(--text-2)">☁️ Cloudflare隧道无法直连探测，保存后由跳板机经 cloudflared 探测</div>';
-      } else {
-        resultsDiv.textContent = '⏳ 验证中...';
-        const response = await fetch('/api/verify-server', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host,port}) });
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        resultsDiv.innerHTML = '';
-        while(true) {
-          const {done,value} = await reader.read();
-          if(done) break;
-          const lines = decoder.decode(value).split('\\n').filter(l=>l.startsWith('data: '));
-          for(const line of lines) {
-            const data = JSON.parse(line.slice(6));
-            const stepEl = document.createElement('div'); stepEl.className = 'verify-step';
-            if(data.step==='direct_ssh') {
-              stepEl.textContent = (data.status==='running'?'⏳':data.status==='success'?'✅':'❌')+' 直连SSH '+(data.latency_ms?data.latency_ms+'ms':'')+' '+(data.error||'');
-            } else if(data.step==='proxy_ssh') {
+      resultsDiv.textContent = '⏳ 验证中...';
+      const response = await fetch('/api/verify-server', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host,port,connection_type: isTunnel?'cloudflare_tunnel':'standard'}) });
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      resultsDiv.innerHTML = '';
+      while(true) {
+        const {done,value} = await reader.read();
+        if(done) break;
+        const lines = decoder.decode(value).split('\\n').filter(l=>l.startsWith('data: '));
+        for(const line of lines) {
+          const data = JSON.parse(line.slice(6));
+          const stepEl = document.createElement('div'); stepEl.className = 'verify-step';
+          if(data.step==='dns') {
+            stepEl.textContent = (data.status==='running'?'⏳':data.status==='success'?'✅':'❌')+' DNS解析 '+(data.ip||data.error||'');
+          } else if(data.step==='direct_ssh') {
+            var label = data.step_label||'直连SSH';
+            stepEl.textContent = (data.status==='running'?'⏳':data.status==='success'?'✅':'❌')+' '+label+' '+(data.latency_ms?data.latency_ms+'ms':'')+' '+(data.error||'');
+          } else if(data.step==='proxy_ssh') {
+            if(data.status==='skipped') {
+              stepEl.style.color = 'var(--text-2)';
+              stepEl.textContent = '⏭️ '+data.skip_reason;
+            } else {
               stepEl.textContent = (data.status==='running'?'⏳':data.status==='success'?'✅':'❌')+' '+data.proxy_name+' '+(data.latency_ms?data.latency_ms+'ms':'')+' '+(data.error||'');
-            } else if(data.step==='complete' && data.best_proxy) {
-              stepEl.style.color = 'var(--green)';
-              stepEl.textContent = '✅ 推荐: '+data.best_proxy.name+' ('+data.best_proxy.latency_ms+'ms)';
             }
-            resultsDiv.appendChild(stepEl);
+          } else if(data.step==='complete' && data.best_proxy) {
+            stepEl.style.color = 'var(--green)';
+            stepEl.textContent = '✅ 推荐: '+data.best_proxy.name+' ('+data.best_proxy.latency_ms+'ms)';
           }
+          resultsDiv.appendChild(stepEl);
         }
       }
       var keyContentEl = document.getElementById('add-key-content');
