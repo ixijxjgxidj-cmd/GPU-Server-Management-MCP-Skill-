@@ -53,6 +53,7 @@ app.post('/', async (c) => {
     direct_when_no_proxy: body.direct_when_no_proxy ? 1 : 0,
     gpu_model: body.gpu_model ?? null,
     gpu_memory_gb: body.gpu_memory_gb ?? null,
+    gpu_count: body.gpu_count ?? null,
     cpu_cores: body.cpu_cores ?? null,
     ram_gb: body.ram_gb ?? null,
     disk_gb: body.disk_gb ?? null,
