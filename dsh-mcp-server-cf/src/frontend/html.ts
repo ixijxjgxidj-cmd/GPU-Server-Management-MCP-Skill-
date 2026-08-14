@@ -636,7 +636,8 @@ export const HTML = `<!DOCTYPE html>
         '</div>' +
         // Form section
         '<div class="form-group"><label>名称</label><input id="add-name" placeholder="my-gpu-server"></div>' +
-        '<div class="form-row"><div class="form-group"><label>地址</label><input id="add-host" placeholder="192.168.1.100"></div><div class="form-group"><label>SSH端口</label><input id="add-port" value="22"></div></div>' +
+        '<div id="conn-standard-row"><div class="form-row"><div class="form-group"><label>地址</label><input id="add-host" placeholder="192.168.1.100"></div><div class="form-group"><label>SSH端口</label><input id="add-port" value="22"></div></div></div>' +
+        '<div id="conn-tunnel-row" style="display:none"><div class="form-group"><label>隧道域名</label><input id="add-tunnel-host" placeholder="ssh.example.com"></div><div class="form-group" style="margin-top:6px;padding:8px 12px;border-radius:6px;border:1px dashed var(--border);font-size:12px;color:var(--text-2)">☁️ 客户机需先安装 cloudflared 并执行 <code>cloudflared login</code>，连接时用 <code>ssh -o ProxyCommand="cloudflared access ssh --hostname %h" user@隧道域名</code></div></div>' +
         '<div class="form-row"><div class="form-group"><label>用户名</label><input id="add-user" value="root"></div><div class="form-group"><label>认证</label><select id="add-auth-method"><option value="key">SSH密钥</option><option value="password">密码</option></select></div></div>' +
         '<div id="auth-fields"><div class="form-group"><label>密钥路径</label><input id="add-key-path" placeholder="/home/.ssh/id_rsa"></div></div>' +
         '<div class="form-row"><div class="form-group"><label>GPU型号</label><input id="add-gpu" placeholder="NVIDIA A100"></div><div class="form-group"><label>显存GB</label><input id="add-gpu-mem" type="number"></div></div>' +
@@ -645,7 +646,7 @@ export const HTML = `<!DOCTYPE html>
         '<div class="form-group"><label>备注</label><textarea id="add-notes" rows="2" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-size:13px;resize:vertical" placeholder="服务器的用途、注意事项等"></textarea></div>' +
         '<div style="margin:12px 0"><strong>连接方式</strong></div>' +
         '<div class="form-group"><label>连接形式</label><select id="add-connection-type"><option value="standard">标准SSH（直连/代理）</option><option value="cloudflare_tunnel">Cloudflare隧道（cloudflared access ssh）</option></select></div>' +
-        '<div class="toggle-group"><label><input type="checkbox" id="add-v2ray"> 有V2RayN</label><label><input type="checkbox" id="add-direct-proxy" checked> V2RayN时可直连</label><label><input type="checkbox" id="add-direct-no-proxy"> 无代理时直连</label></div>' +
+        '<div id="conn-standard-toggles" class="toggle-group"><label><input type="checkbox" id="add-v2ray"> 有V2RayN</label><label><input type="checkbox" id="add-direct-proxy" checked> V2RayN时可直连</label><label><input type="checkbox" id="add-direct-no-proxy"> 无代理时直连</label></div>' +
         '<div id="verify-results" style="margin-top:12px"></div>' +
         '<div class="modal-actions"><button class="btn-primary" onclick="verifyAndSave()">验证并保存</button><button onclick="closeModal()">取消</button></div>'
       );
@@ -666,8 +667,29 @@ export const HTML = `<!DOCTYPE html>
         };
       }
 
-      // Wire up auth method toggle
+      // Wire up auth method toggle + connection type toggle
       document.getElementById('add-auth-method').onchange = triggerAuthChange;
+      document.getElementById('add-connection-type').onchange = triggerConnTypeChange;
+    }
+
+    function triggerConnTypeChange() {
+      var sel = document.getElementById('add-connection-type');
+      var isTunnel = sel && sel.value === 'cloudflare_tunnel';
+      var stdRow = document.getElementById('conn-standard-row');
+      var tunnelRow = document.getElementById('conn-tunnel-row');
+      var toggles = document.getElementById('conn-standard-toggles');
+      if (stdRow) stdRow.style.display = isTunnel ? 'none' : '';
+      if (tunnelRow) tunnelRow.style.display = isTunnel ? '' : 'none';
+      if (toggles) toggles.style.display = isTunnel ? 'none' : '';
+    }
+
+    function editToggleConnType() {
+      var sel = document.getElementById('edit-connection-type');
+      var isTunnel = sel && sel.value === 'cloudflare_tunnel';
+      var toggles = document.getElementById('edit-conn-standard-toggles');
+      var hint = document.getElementById('edit-conn-tunnel-hint');
+      if (toggles) toggles.style.display = isTunnel ? 'none' : '';
+      if (hint) hint.style.display = isTunnel ? '' : 'none';
     }
 
     function triggerAuthChange() {
@@ -702,30 +724,39 @@ export const HTML = `<!DOCTYPE html>
     }
 
     async function verifyAndSave() {
-      const host = document.getElementById('add-host').value;
-      const port = parseInt(document.getElementById('add-port').value) || 22;
+      var connTypeSel = document.getElementById('add-connection-type');
+      var isTunnel = connTypeSel && connTypeSel.value === 'cloudflare_tunnel';
+      var host = isTunnel
+        ? document.getElementById('add-tunnel-host').value
+        : document.getElementById('add-host').value;
+      var port = isTunnel ? 22 : (parseInt(document.getElementById('add-port').value) || 22);
       const resultsDiv = document.getElementById('verify-results');
-      resultsDiv.textContent = '⏳ 验证中...';
-      const response = await fetch('/api/verify-server', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host,port}) });
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      resultsDiv.innerHTML = '';
-      while(true) {
-        const {done,value} = await reader.read();
-        if(done) break;
-        const lines = decoder.decode(value).split('\\n').filter(l=>l.startsWith('data: '));
-        for(const line of lines) {
-          const data = JSON.parse(line.slice(6));
-          const stepEl = document.createElement('div'); stepEl.className = 'verify-step';
-          if(data.step==='direct_ssh') {
-            stepEl.textContent = (data.status==='running'?'⏳':data.status==='success'?'✅':'❌')+' 直连SSH '+(data.latency_ms?data.latency_ms+'ms':'')+' '+(data.error||'');
-          } else if(data.step==='proxy_ssh') {
-            stepEl.textContent = (data.status==='running'?'⏳':data.status==='success'?'✅':'❌')+' '+data.proxy_name+' '+(data.latency_ms?data.latency_ms+'ms':'')+' '+(data.error||'');
-          } else if(data.step==='complete' && data.best_proxy) {
-            stepEl.style.color = 'var(--green)';
-            stepEl.textContent = '✅ 推荐: '+data.best_proxy.name+' ('+data.best_proxy.latency_ms+'ms)';
+      if (isTunnel) {
+        // CF tunnel can't be TCP-pinged from the Worker; just validate the field.
+        resultsDiv.innerHTML = '<div class="verify-step" style="color:var(--text-2)">☁️ Cloudflare隧道无法直连探测，保存后由跳板机经 cloudflared 探测</div>';
+      } else {
+        resultsDiv.textContent = '⏳ 验证中...';
+        const response = await fetch('/api/verify-server', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host,port}) });
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        resultsDiv.innerHTML = '';
+        while(true) {
+          const {done,value} = await reader.read();
+          if(done) break;
+          const lines = decoder.decode(value).split('\\n').filter(l=>l.startsWith('data: '));
+          for(const line of lines) {
+            const data = JSON.parse(line.slice(6));
+            const stepEl = document.createElement('div'); stepEl.className = 'verify-step';
+            if(data.step==='direct_ssh') {
+              stepEl.textContent = (data.status==='running'?'⏳':data.status==='success'?'✅':'❌')+' 直连SSH '+(data.latency_ms?data.latency_ms+'ms':'')+' '+(data.error||'');
+            } else if(data.step==='proxy_ssh') {
+              stepEl.textContent = (data.status==='running'?'⏳':data.status==='success'?'✅':'❌')+' '+data.proxy_name+' '+(data.latency_ms?data.latency_ms+'ms':'')+' '+(data.error||'');
+            } else if(data.step==='complete' && data.best_proxy) {
+              stepEl.style.color = 'var(--green)';
+              stepEl.textContent = '✅ 推荐: '+data.best_proxy.name+' ('+data.best_proxy.latency_ms+'ms)';
+            }
+            resultsDiv.appendChild(stepEl);
           }
-          resultsDiv.appendChild(stepEl);
         }
       }
       var keyContentEl = document.getElementById('add-key-content');
@@ -942,8 +973,11 @@ export const HTML = `<!DOCTYPE html>
         }
 
         addInput('名称', 'edit-name', 'text', s.name);
-        addInput('地址', 'edit-host', 'text', s.host);
-        addInput('端口', 'edit-port', 'text', s.port);
+        var _eCT = s.connection_type || 'standard';
+        addInput(_eCT === 'cloudflare_tunnel' ? '隧道域名' : '地址', 'edit-host', 'text', s.host);
+        if (_eCT !== 'cloudflare_tunnel') {
+          addInput('端口', 'edit-port', 'text', s.port);
+        }
         addInput('用户名', 'edit-user', 'text', s.username);
 
         // Auth method selector
@@ -996,12 +1030,13 @@ export const HTML = `<!DOCTYPE html>
         var _ct = s.connection_type || 'standard';
         var connDiv = document.createElement('div');
         connDiv.innerHTML = '<div style="margin:12px 0"><strong>连接方式</strong></div>'+
-          '<div class="form-group"><label>连接形式</label><select id="edit-connection-type"><option value="standard"'+(_ct==='standard'?' selected':'')+'>标准SSH（直连/代理）</option><option value="cloudflare_tunnel"'+(_ct==='cloudflare_tunnel'?' selected':'')+'>Cloudflare隧道（cloudflared access ssh）</option></select></div>'+
-          '<div class="toggle-group">'+
+          '<div class="form-group"><label>连接形式</label><select id="edit-connection-type" onchange="editToggleConnType()"><option value="standard"'+(_ct==='standard'?' selected':'')+'>标准SSH（直连/代理）</option><option value="cloudflare_tunnel"'+(_ct==='cloudflare_tunnel'?' selected':'')+'>Cloudflare隧道（cloudflared access ssh）</option></select></div>'+
+          '<div id="edit-conn-standard-toggles" class="toggle-group"'+(_ct==='cloudflare_tunnel'?' style="display:none"':'')+'>'+
           '<label><input type="checkbox" id="edit-v2ray"'+(s.proxy?.v2ray_available||s.v2ray_available?' checked':'')+'> 有V2RayN</label>'+
           '<label><input type="checkbox" id="edit-direct-proxy"'+(s.proxy?.direct_when_proxy_available||s.direct_when_proxy_available?' checked':'')+'> V2RayN时可直连</label>'+
           '<label><input type="checkbox" id="edit-direct-no-proxy"'+(s.proxy?.direct_when_no_proxy||s.direct_when_no_proxy?' checked':'')+'> 无代理时直连</label>'+
-          '</div>';
+          '</div>'+
+          '<div id="edit-conn-tunnel-hint" class="form-group"'+(_ct!=='cloudflare_tunnel'?' style="display:none"':'')+' style="margin-top:6px;padding:8px 12px;border-radius:6px;border:1px dashed var(--border);font-size:12px;color:var(--text-2)">☁️ 客户机需先安装 cloudflared 并执行 <code>cloudflared login</code>，连接时用 <code>ssh -o ProxyCommand="cloudflared access ssh --hostname %h" user@隧道域名</code></div>';
         content.appendChild(connDiv);
 
         var actionsDiv = document.createElement('div'); actionsDiv.className = 'modal-actions';
@@ -1020,7 +1055,7 @@ export const HTML = `<!DOCTYPE html>
       var updates = {
         name: document.getElementById('edit-name').value,
         host: document.getElementById('edit-host').value,
-        port: parseInt(document.getElementById('edit-port').value)||22,
+        port: document.getElementById('edit-port') ? (parseInt(document.getElementById('edit-port').value)||22) : 22,
         username: document.getElementById('edit-user').value,
         auth_method: document.getElementById('edit-auth-method').value,
         gpu_model: document.getElementById('edit-gpu').value||null,
