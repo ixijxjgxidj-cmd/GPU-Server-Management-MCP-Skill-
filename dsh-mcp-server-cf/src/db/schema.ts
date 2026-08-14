@@ -30,6 +30,13 @@ export interface DBServer {
   enabled: number;  // 1=enabled (visible to MCP), 0=disabled (hidden from MCP)
   ssh_banner: string | null;  // SSH server banner text
   os_hint: string | null;     // Detected OS type (Ubuntu, Debian, etc.)
+  gpu_count: number | null;
+  gpu_util_pct: number | null;
+  gpu_mem_free_gb: number | null;
+  ram_free_gb: number | null;
+  disk_free_gb: number | null;
+  running_tasks: number | null;
+  load_updated_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -63,6 +70,14 @@ export interface DBReachability {
   reachable: number;
   latency_ms: number | null;
   last_tested_at: string;
+}
+
+export interface DBServerNote {
+  server_id: string;
+  topic: string;
+  content: string;
+  updated_by: string | null;
+  updated_at: string;
 }
 
 // Types that include D1 result types

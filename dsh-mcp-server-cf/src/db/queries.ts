@@ -27,9 +27,15 @@ export async function getServerById(db: D1Database, id: string): Promise<DBServe
   return result ?? null;
 }
 
+// Dedup key for upsert is the host (IP/domain).
+export async function getServerByHost(db: D1Database, host: string): Promise<DBServer | null> {
+  const result = await db.prepare('SELECT * FROM servers WHERE host = ? LIMIT 1').bind(host).first<DBServer>();
+  return result ?? null;
+}
+
 export async function createServer(
   db: D1Database,
-  data: Omit<DBServer, 'id' | 'created_at' | 'updated_at' | 'status_online' | 'status_last_check' | 'status_ping_ms' | 'status_error' | 'current_task' | 'current_agent' | 'task_started_at' | 'enabled' | 'ssh_banner' | 'os_hint'>
+  data: Omit<DBServer, 'id' | 'created_at' | 'updated_at' | 'status_online' | 'status_last_check' | 'status_ping_ms' | 'status_error' | 'current_task' | 'current_agent' | 'task_started_at' | 'enabled' | 'ssh_banner' | 'os_hint' | 'gpu_count' | 'gpu_util_pct' | 'gpu_mem_free_gb' | 'ram_free_gb' | 'disk_free_gb' | 'running_tasks' | 'load_updated_at'>
 ): Promise<string> {
   const id = uuid();
   const now = new Date().toISOString();
@@ -173,15 +179,15 @@ export async function deleteProxy(db: D1Database, id: string): Promise<boolean> 
 export async function getReachability(
   db: D1Database,
   serverId: string
-): Promise<(DBReachability & { proxy_name: string })[]> {
+): Promise<(DBReachability & { proxy_name: string; proxy_host: string; proxy_port: number; proxy_protocol: string })[]> {
   const result = await db.prepare(`
-    SELECT r.*, p.name as proxy_name
+    SELECT r.*, p.name as proxy_name, p.host as proxy_host, p.port as proxy_port, p.protocol as proxy_protocol
     FROM proxy_server_reachability r
     JOIN proxies p ON r.proxy_id = p.id
     WHERE r.server_id = ?
     ORDER BY r.latency_ms ASC
   `).bind(serverId).all();
-  return result.results as unknown as (DBReachability & { proxy_name: string })[];
+  return result.results as unknown as (DBReachability & { proxy_name: string; proxy_host: string; proxy_port: number; proxy_protocol: string })[];
 }
 
 export async function upsertReachability(
