@@ -66,8 +66,21 @@ Try in order; stop at the first that connects.
 
 **These tools plan; they never execute.** They return commands. You run them over SSH.
 
-### Load freshness loop
+### GPU sharing mode
 
+Each server has a `gpu_sharing_mode` that governs how `plan_task_allocation` counts GPU capacity:
+
+- **`shared`** (default) — multiple tasks co-locate on the same card; capacity is gated by **free
+  VRAM**, not card count. Right for inference and light co-located jobs. A 1-card machine with
+  8 GB free can take several 2 GB tasks.
+- **`exclusive`** — a task claims **whole cards**; schedulable cards = `gpu_count - running_tasks`.
+  Right for training that must not share a GPU.
+
+Set it per server in the web UI (edit server → GPU分配模式) or via
+`upsert_server { host, gpu_sharing_mode: "exclusive" }`. If GPU tasks come back `unassignable` on a
+busy shared card, the limit is VRAM — check `gpu_mem_free_gb`, not the card count.
+
+### Load freshness loop
 `plan_task_allocation` falls back to static specs when live load is missing and flags it in
 `stale_warnings`; allocations built on stale data can overcommit a busy machine. To refresh:
 
