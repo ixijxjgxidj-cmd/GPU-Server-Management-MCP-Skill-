@@ -11,68 +11,39 @@ export interface McpTool {
   execute: (args: Record<string, unknown>, ctx: ToolContext) => Promise<McpCallToolResult>;
 }
 
-import { listServersTool } from './list_servers';
-import { getServerTool } from './get_server';
-import { addServerTool } from './add_server';
+import { getServersTool } from './get_servers';
+import { upsertServerTool } from './upsert_server';
 import { updateServerTool } from './update_server';
 import { removeServerTool } from './remove_server';
-import { queryServersTool } from './query_servers';
-import { recordUsageTool } from './record_usage';
+import { verifyConnectivityTool } from './verify_connectivity';
 import { listProxiesTool } from './list_proxies';
 import { addProxyTool } from './add_proxy';
 import { removeProxyTool } from './remove_proxy';
-import { testProxyTool } from './test_proxy';
-import { findBestServerTool } from './find_best_server';
-import { verifyConnectivityTool } from './verify_connectivity';
-import { getClusterSummaryTool } from './get_cluster_summary';
-import { batchQueryServersTool } from './batch_query_servers';
-import { batchAssignServersTool } from './batch_assign_servers';
-import { batchProbeServersTool } from './batch_probe_servers';
-import { claimServerTool } from './claim_server';
-import { releaseServerTool } from './release_server';
-import { enableServerTool, disableServerTool } from './enable_server';
-import { detectHardwareTool } from './detect_hardware';
+import { refreshLoadTool } from './refresh_load';
+import { planTaskAllocationTool } from './plan_task_allocation';
+import { planDiskShareTool } from './plan_disk_share';
+import { planNetworkRelayTool } from './plan_network_relay';
 
 export const toolRegistry: McpTool[] = [
-  // Basic CRUD — servers
-  listServersTool,
-  getServerTool,
-  addServerTool,
+  // The one-shot "get servers + how to connect" tool — the primary entry point
+  getServersTool,
+
+  // Server management
+  upsertServerTool,
   updateServerTool,
   removeServerTool,
-  queryServersTool,
+  verifyConnectivityTool,
 
-  // Basic CRUD — proxies
+  // Proxy management
   listProxiesTool,
   addProxyTool,
   removeProxyTool,
 
-  // Testing and diagnostics
-  testProxyTool,
-  verifyConnectivityTool,
-
-  // Usage tracking
-  recordUsageTool,
-
-  // High-level workflow tools
-  findBestServerTool,
-  getClusterSummaryTool,
-
-  // Multi-server orchestration tools
-  batchQueryServersTool,
-  batchAssignServersTool,
-  batchProbeServersTool,
-
-  // Task/occupation management
-  claimServerTool,
-  releaseServerTool,
-
-  // Server enable/disable
-  enableServerTool,
-  disableServerTool,
-
-  // Hardware detection
-  detectHardwareTool,
+  // Multi-server orchestration
+  refreshLoadTool,
+  planTaskAllocationTool,
+  planDiskShareTool,
+  planNetworkRelayTool,
 ];
 
 export function getTool(name: string): McpTool | undefined {
