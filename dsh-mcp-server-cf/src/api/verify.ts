@@ -13,9 +13,10 @@ app.post('/', async (c) => {
   const isTunnel = connection_type === 'cloudflare_tunnel';
 
   return streamSSE(c, async (stream) => {
-    // Step 0: DNS resolution (always useful, especially for tunnel hostnames)
+    // Step 0: DNS resolution (skip for bare IPs; useful for tunnel hostnames)
     await stream.writeSSE({ event: 'verify', data: JSON.stringify({ step: 'dns', status: 'running' }) });
-    const dnsResult = await resolveDNS(host);
+    const isIP = /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+    const dnsResult = isIP ? { resolved: true, ip: host, error: undefined } : await resolveDNS(host);
     await stream.writeSSE({ event: 'verify', data: JSON.stringify({
       step: 'dns', status: dnsResult.resolved ? 'success' : 'failed',
       ip: dnsResult.ip, error: dnsResult.error,
@@ -69,12 +70,19 @@ app.post('/', async (c) => {
       }
     }
 
-    // Step 3: Complete
+    // Step 3: Summary verdict — honest overall conclusion.
     const bestProxy = proxyResults
       .filter(r => r.reachable)
       .sort((a, b) => (a.latency_ms ?? Infinity) - (b.latency_ms ?? Infinity))[0];
 
-    await stream.writeSSE({ event: 'verify', data: JSON.stringify({ step: 'complete', best_proxy: bestProxy || null }) });
+    const directOk = pingResult && pingResult.reachable;
+    const verdict = directOk
+      ? { status: 'reachable' as const, via: 'direct', name: '直连', latency_ms: pingResult.latency_ms }
+      : bestProxy
+        ? { status: 'reachable' as const, via: 'proxy', name: bestProxy.name, latency_ms: bestProxy.latency_ms, proxy_id: bestProxy.proxy_id }
+        : { status: 'unreachable' as const, via: null, name: null, latency_ms: null };
+
+    await stream.writeSSE({ event: 'verify', data: JSON.stringify({ step: 'verdict', ...verdict }) });
   });
 });
 

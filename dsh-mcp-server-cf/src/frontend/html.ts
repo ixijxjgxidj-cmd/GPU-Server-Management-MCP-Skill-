@@ -755,9 +755,15 @@ export const HTML = `<!DOCTYPE html>
             } else {
               stepEl.textContent = (data.status==='running'?'⏳':data.status==='success'?'✅':'❌')+' '+data.proxy_name+' '+(data.status==='success'&&data.latency_ms?data.latency_ms+'ms':'')+' '+(data.error||'');
             }
-          } else if(data.step==='complete' && data.best_proxy) {
-            stepEl.style.color = 'var(--green)';
-            stepEl.textContent = '✅ 推荐: '+data.best_proxy.name+' ('+data.best_proxy.latency_ms+'ms)';
+          } else if(data.step==='verdict') {
+            if (data.status === 'reachable') {
+              stepEl.style.cssText = 'font-weight:bold;font-size:14px;padding:8px 12px;margin-top:6px;border-radius:6px;background:var(--green-bg,rgba(34,197,94,0.12));color:var(--green,#22c55e);border:1px solid var(--green,#22c55e)';
+              var via = data.via === 'proxy' ? ('通过代理 '+data.name) : '直连';
+              stepEl.textContent = '✅ 服务器可达 · ' + via + ' (' + data.latency_ms + 'ms)';
+            } else {
+              stepEl.style.cssText = 'font-weight:bold;font-size:14px;padding:8px 12px;margin-top:6px;border-radius:6px;background:var(--red-bg,rgba(239,68,68,0.12));color:var(--red,#ef4444);border:1px solid var(--red,#ef4444)';
+              stepEl.textContent = '❌ 服务器不可达 — 所有连接方式(直连+代理)均失败';
+            }
           }
           resultsDiv.appendChild(stepEl);
         }
