@@ -73,8 +73,7 @@ export async function testViaSocks5(
     socket.close();
     return { reachable: true, latency_ms: latencyMs };
   } catch (err) {
-    const elapsed = Date.now() - startTime;
-    return { reachable: false, latency_ms: elapsed, error: `Connection failed: ${err}` };
+    return { reachable: false, latency_ms: null, error: `Connection failed: ${err}` };
   }
 }
 

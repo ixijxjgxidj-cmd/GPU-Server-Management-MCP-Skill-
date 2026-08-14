@@ -32,8 +32,7 @@ export async function tcpPing(
     (socket as any).close();
     return { reachable: true, latency_ms: latencyMs };
   } catch (err) {
-    const elapsed = Date.now() - startTime;
-    return { reachable: false, latency_ms: elapsed, error: `TCP ping failed: ${err}` };
+    return { reachable: false, latency_ms: null, error: `TCP ping failed: ${err}` };
   }
 }
 
@@ -107,8 +106,7 @@ export async function grabSSHBanner(
       os_hint: osHint,
     };
   } catch (err) {
-    const elapsed = Date.now() - startTime;
     if (socket) { try { socket.close(); } catch {} }
-    return { reachable: false, latency_ms: elapsed, error: `SSH banner grab failed: ${err}` };
+    return { reachable: false, latency_ms: null, error: `SSH banner grab failed: ${err}` };
   }
 }

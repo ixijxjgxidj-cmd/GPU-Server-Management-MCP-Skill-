@@ -747,13 +747,13 @@ export const HTML = `<!DOCTYPE html>
             stepEl.textContent = (data.status==='running'?'⏳':data.status==='success'?'✅':'❌')+' DNS解析 '+(data.ip||data.error||'');
           } else if(data.step==='direct_ssh') {
             var label = data.step_label||'直连SSH';
-            stepEl.textContent = (data.status==='running'?'⏳':data.status==='success'?'✅':'❌')+' '+label+' '+(data.latency_ms?data.latency_ms+'ms':'')+' '+(data.error||'');
+            stepEl.textContent = (data.status==='running'?'⏳':data.status==='success'?'✅':'❌')+' '+label+' '+(data.status==='success'&&data.latency_ms?data.latency_ms+'ms':'')+' '+(data.error||'');
           } else if(data.step==='proxy_ssh') {
             if(data.status==='skipped') {
               stepEl.style.color = 'var(--text-2)';
               stepEl.textContent = '⏭️ '+data.skip_reason;
             } else {
-              stepEl.textContent = (data.status==='running'?'⏳':data.status==='success'?'✅':'❌')+' '+data.proxy_name+' '+(data.latency_ms?data.latency_ms+'ms':'')+' '+(data.error||'');
+              stepEl.textContent = (data.status==='running'?'⏳':data.status==='success'?'✅':'❌')+' '+data.proxy_name+' '+(data.status==='success'&&data.latency_ms?data.latency_ms+'ms':'')+' '+(data.error||'');
             }
           } else if(data.step==='complete' && data.best_proxy) {
             stepEl.style.color = 'var(--green)';
