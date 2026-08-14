@@ -520,16 +520,17 @@ export const HTML = `<!DOCTYPE html>
       if (d.vendor_url) setVal('add-vendor-url', d.vendor_url);
       if (d.notes) setVal('add-notes', d.notes);
 
-      // Handle auth: fill key or password
-      if (d.auth_method === 'key' && d.key_content) {
-        var authSel = document.getElementById('add-auth-method');
-        if (authSel) { authSel.value = 'key'; showKeyContent(d.key_content); }
-      } else if (d.auth_method === 'password' && d.password) {
-        var authSel = document.getElementById('add-auth-method');
-        if (authSel) { authSel.value = 'password'; showPasswordField(d.password); }
-      } else if (d.auth_method) {
-        var authSel = document.getElementById('add-auth-method');
-        if (authSel) { authSel.value = d.auth_method; triggerAuthChange(); }
+      // Handle auth: backend already normalized auth_method from the actual credential.
+      var authSel = document.getElementById('add-auth-method');
+      if (d.auth_method === 'key') {
+        if (authSel) authSel.value = 'key';
+        if (d.key_content) { showKeyContent(d.key_content); }
+        else { window._aiKeyContent = null; triggerAuthChange(); }
+      } else if (d.auth_method === 'password') {
+        if (authSel) authSel.value = 'password';
+        showPasswordField(d.password || '');
+      } else if (authSel && d.auth_method) {
+        authSel.value = d.auth_method; triggerAuthChange();
       }
     }
 

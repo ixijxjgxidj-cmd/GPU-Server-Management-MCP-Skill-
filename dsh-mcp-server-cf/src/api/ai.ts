@@ -21,6 +21,8 @@ interface ExtractedServerInfo {
   notes?: string;
 }
 
+export type { ExtractedServerInfo };
+
 /**
  * POST /api/ai/extract-server
  * Accepts pasted text or an image (base64) and uses the configured AI model
@@ -71,8 +73,13 @@ app.post('/extract-server', async (c) => {
 Rules:
 - CRITICAL: Distinguish SSH username from web console username. The SSH user is what you use with "ssh user@host", NOT the cloud console login.
 - CRITICAL: Distinguish internal/private IP from external/public IP. Set "host" to the public IP if visible, otherwise internal IP.
-- If you see an SSH private key (-----BEGIN...), set auth_method to "key" and put the FULL key in key_content. Preserve the exact format with proper line breaks.
-- If you see a password, set auth_method to "password" and put it in the password field.
+- CRITICAL: Decide auth_method from the actual credential present, not from labels:
+  - If an SSH PRIVATE KEY block is present (a line containing "-----BEGIN" ... "PRIVATE KEY-----", possibly OPENSSH/RSA/EC/DSA/PKCS8), set auth_method to "key" and put the FULL key verbatim in key_content, preserving every line break. Leave password empty.
+  - Otherwise, if a login password is present, set auth_method to "password" and put it in the password field. Leave key_content empty.
+  - A key path like "~/.ssh/id_rsa" or "id_ed25519.pem" without the key body still means auth_method "key"; put the path in notes.
+  - If BOTH a private key and a password appear, prefer "key".
+  - If neither is visible, set auth_method to "password" and leave the credential empty.
+- Never put a password value inside key_content, and never put a private key inside password.
 - For images, read all visible text including IPs, credentials, GPU info, etc.
 - If exact values aren't visible, make reasonable inferences and note them.
 - Always include port (default 22 if not specified).
@@ -164,6 +171,11 @@ Rules:
       extracted.key_content = formatSshKey(extracted.key_content);
     }
 
+    // Content-based auth_method detection — do not blindly trust the model's own
+    // auth_method field, which it sometimes omits or gets wrong. Decide from what
+    // credential material is actually present.
+    extracted.auth_method = detectAuthMethod(extracted);
+
     // Ensure port defaults to 22
     if (!extracted.port) {
       extracted.port = 22;
@@ -175,6 +187,25 @@ Rules:
     return c.json({ error: `AI model call failed: ${msg}` }, 502);
   }
 });
+
+/**
+ * Decide auth_method from the credential material actually extracted, rather than
+ * trusting the model's self-reported auth_method (which it sometimes omits or gets
+ * wrong). A real private-key body wins over a password; a bare key path still counts
+ * as key auth.
+ */
+export function detectAuthMethod(e: ExtractedServerInfo): 'key' | 'password' {
+  const key = (e.key_content || '').trim();
+  const hasKeyBody = /-----BEGIN[\s\S]*PRIVATE KEY-----/i.test(key);
+  const hasKeyPath = !hasKeyBody && /\.(pem|key)$|id_(rsa|ed25519|ecdsa|dsa)/i.test(key || (e.notes || ''));
+  const hasPassword = !!(e.password && e.password.trim());
+
+  if (hasKeyBody) return 'key';
+  if (hasPassword) return 'password';
+  if (hasKeyPath) return 'key';
+  // Fall back to the model's hint if it gave a valid one, else default to password.
+  return e.auth_method === 'key' ? 'key' : 'password';
+}
 
 /**
  * Format an SSH private key with proper line breaks.
