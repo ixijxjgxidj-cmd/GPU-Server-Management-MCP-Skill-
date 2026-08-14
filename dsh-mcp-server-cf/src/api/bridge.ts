@@ -70,23 +70,32 @@ app.get('/tasks', async (c) => {
 
   const targets = all
     .filter(s => !jumpHost || s.host !== jumpHost)
-    .map(s => ({
-      server_id: s.id,
-      name: s.name,
-      host: s.host,
-      port: s.port,
-      username: s.username,
-      auth_method: s.auth_method,
-      key_path: s.key_path,
-      key_content_b64: s.key_content ? btoa(s.key_content) : null,
-      password: s.password,
-      // Ordered SSH plan the agent tries until one connects:
-      //   1) direct   2) each socks5 proxy via ProxyCommand
-      ssh_plan: [
-        { mode: 'direct' as const },
-        ...socks.map(p => ({ mode: 'socks5' as const, proxy_id: p.proxy_id, proxy_host: p.host, proxy_port: p.port, proxy_username: p.username, proxy_password: p.password })),
-      ],
-    }));
+    .map(s => {
+      const connType = s.connection_type === 'cloudflare_tunnel' ? 'cloudflare_tunnel' : 'standard';
+      // cloudflare_tunnel: the only sane path is through cloudflared (host = tunnel
+      //   hostname, port is the tunnel SSH port). We still list direct as a first
+      //   attempt for the rare case the tunnel host also resolves directly.
+      // standard: direct first, then each socks5 proxy via ProxyCommand.
+      const ssh_plan = connType === 'cloudflare_tunnel'
+        ? [{ mode: 'cloudflared' as const }, { mode: 'direct' as const }]
+        : [
+            { mode: 'direct' as const },
+            ...socks.map(p => ({ mode: 'socks5' as const, proxy_id: p.proxy_id, proxy_host: p.host, proxy_port: p.port, proxy_username: p.username, proxy_password: p.password })),
+          ];
+      return {
+        server_id: s.id,
+        name: s.name,
+        host: s.host,
+        port: s.port,
+        username: s.username,
+        auth_method: s.auth_method,
+        key_path: s.key_path,
+        key_content_b64: s.key_content ? btoa(s.key_content) : null,
+        password: s.password,
+        connection_type: connType,
+        ssh_plan,
+      };
+    });
 
   return c.json({
     probe_script: PROBE_SCRIPT,

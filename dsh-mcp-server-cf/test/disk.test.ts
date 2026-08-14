@@ -14,6 +14,7 @@ function srv(id: string, over: Partial<DBServer> = {}): DBServer {
     gpu_util_pct: null, gpu_mem_free_gb: null, ram_free_gb: null, disk_free_gb: 800, running_tasks: null,
     load_updated_at: '2026-08-14T00:00:00Z',
     gpu_sharing_mode: 'shared',
+    connection_type: 'standard',
     python_version: null, torch_version: null, cuda_version: null, top_cpu_tasks: null,
     created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
     ...over,

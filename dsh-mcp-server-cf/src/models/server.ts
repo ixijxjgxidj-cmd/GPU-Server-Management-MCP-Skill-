@@ -54,6 +54,7 @@ export interface ServerDetail {
   status_error: string | null;
   gpu_count: number | null;
   gpu_sharing_mode: 'shared' | 'exclusive';
+  connection_type: 'standard' | 'cloudflare_tunnel';
   default_proxy_id: string | null;
   reachable_proxies: Array<{ id: string; name: string; latency_ms: number | null }>;
   tags: string[];
@@ -111,6 +112,7 @@ export function dbServerToDetail(
     status_error: db.status_error,
     gpu_count: db.gpu_count,
     gpu_sharing_mode: db.gpu_sharing_mode === 'exclusive' ? 'exclusive' : 'shared',
+    connection_type: db.connection_type === 'cloudflare_tunnel' ? 'cloudflare_tunnel' : 'standard',
     default_proxy_id: db.default_proxy_id,
     reachable_proxies: reachableProxies ?? [],
     tags: db.tags ? JSON.parse(db.tags) : [],

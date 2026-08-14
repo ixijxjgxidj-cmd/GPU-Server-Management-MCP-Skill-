@@ -36,6 +36,7 @@ export const upsertServerTool: McpTool = {
         notes: { type: 'string', description: '备注。' },
         gpu_count: { type: 'number', description: 'GPU卡数(静态容量)。' },
         gpu_sharing_mode: { type: 'string', enum: ['shared', 'exclusive'], description: 'GPU分配模式。shared(默认):按空闲显存共享同一张卡,适合推理/多任务共存;exclusive:整卡独占,适合训练。' },
+        connection_type: { type: 'string', enum: ['standard', 'cloudflare_tunnel'], description: '连接方式。standard(默认):直连或经socks5代理SSH到host:port;cloudflare_tunnel:经Cloudflare隧道SSH,host填隧道域名,客户端用 cloudflared access ssh --hostname <host>。' },
         gpu_util_pct: { type: 'number', description: 'GPU利用率0-100(负载快照)。' },
         gpu_mem_free_gb: { type: 'number', description: '空闲显存GB(负载快照)。' },
         ram_free_gb: { type: 'number', description: '空闲内存GB(负载快照)。' },
@@ -87,6 +88,7 @@ export const upsertServerTool: McpTool = {
       disk_free_gb: args.disk_free_gb,
       running_tasks: args.running_tasks,
       gpu_sharing_mode: args.gpu_sharing_mode,
+      connection_type: args.connection_type,
       tags: Array.isArray(args.tags) ? JSON.stringify(args.tags) : undefined,
     };
 
@@ -142,6 +144,7 @@ export const upsertServerTool: McpTool = {
       default_proxy_id: (args.default_proxy_id as string) ?? null,
       notes: (args.notes as string) ?? null,
       tags: Array.isArray(args.tags) ? JSON.stringify(args.tags) : null,
+      connection_type: args.connection_type === 'cloudflare_tunnel' ? 'cloudflare_tunnel' : 'standard',
     });
     // Write notes entry if provided (even for new servers).
     if (args.notes_entry) {

@@ -35,7 +35,7 @@ export async function getServerByHost(db: D1Database, host: string): Promise<DBS
 
 export async function createServer(
   db: D1Database,
-  data: Omit<DBServer, 'id' | 'created_at' | 'updated_at' | 'status_online' | 'status_last_check' | 'status_ping_ms' | 'status_error' | 'current_task' | 'current_agent' | 'task_started_at' | 'enabled' | 'ssh_banner' | 'os_hint' | 'gpu_util_pct' | 'gpu_mem_free_gb' | 'ram_free_gb' | 'disk_free_gb' | 'running_tasks' | 'load_updated_at' | 'gpu_sharing_mode' | 'python_version' | 'torch_version' | 'cuda_version' | 'top_cpu_tasks'>
+  data: Omit<DBServer, 'id' | 'created_at' | 'updated_at' | 'status_online' | 'status_last_check' | 'status_ping_ms' | 'status_error' | 'current_task' | 'current_agent' | 'task_started_at' | 'enabled' | 'ssh_banner' | 'os_hint' | 'gpu_util_pct' | 'gpu_mem_free_gb' | 'ram_free_gb' | 'disk_free_gb' | 'running_tasks' | 'load_updated_at' | 'gpu_sharing_mode' | 'python_version' | 'torch_version' | 'cuda_version' | 'top_cpu_tasks' | 'connection_type'> & { connection_type?: 'standard' | 'cloudflare_tunnel' }
 ): Promise<string> {
   const id = uuid();
   const now = new Date().toISOString();
@@ -43,14 +43,14 @@ export async function createServer(
     INSERT INTO servers (id, name, vendor_url, host, port, username, auth_method, key_path, key_content, password,
       v2ray_available, direct_when_proxy_available, direct_when_no_proxy,
       gpu_model, gpu_memory_gb, gpu_count, cpu_cores, ram_gb, disk_gb,
-      default_proxy_id, tags, notes, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      default_proxy_id, tags, notes, connection_type, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id, data.name, data.vendor_url, data.host, data.port, data.username, data.auth_method,
     data.key_path, data.key_content, data.password,
     data.v2ray_available, data.direct_when_proxy_available, data.direct_when_no_proxy,
     data.gpu_model, data.gpu_memory_gb, data.gpu_count, data.cpu_cores, data.ram_gb, data.disk_gb,
-    data.default_proxy_id, data.tags, data.notes, now, now
+    data.default_proxy_id, data.tags, data.notes, data.connection_type ?? 'standard', now, now
   ).run();
   return id;
 }

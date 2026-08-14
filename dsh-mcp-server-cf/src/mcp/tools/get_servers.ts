@@ -78,6 +78,7 @@ export const getServersTool: McpTool = {
 
     const enriched = await Promise.all(servers.map(async (s) => {
       const reachable = await getReachability(db, s.id);
+      const connType = s.connection_type === 'cloudflare_tunnel' ? 'cloudflare_tunnel' : 'standard';
       return {
         id: s.id,
         name: s.name,
@@ -88,6 +89,7 @@ export const getServersTool: McpTool = {
         key_path: s.key_path,
         key_content_b64: encodeKeyB64(s.key_content),
         password: s.password,
+        connection_type: connType,
         connection_mode_label: renderConnectionMode({
           v2ray_available: s.v2ray_available === 1,
           direct_when_proxy_available: s.direct_when_proxy_available === 1,
@@ -124,6 +126,10 @@ export const getServersTool: McpTool = {
     }));
 
     const how_to_connect =
+      'connection_type=cloudflare_tunnel 的服务器: host 是隧道域名, SSH 需用 ' +
+      'ssh -o ProxyCommand="cloudflared access ssh --hostname %h" -i <key> <username>@<host> ' +
+      '(本机需安装 cloudflared 并已 cloudflared login)。\n' +
+      'connection_type=standard(默认): ' +
       'key认证: key_content_b64 是单行base64的SSH私钥(无换行,抗压缩)。' +
       'echo "<key_content_b64>" | base64 -d > /tmp/dsh_<id> && chmod 600 /tmp/dsh_<id>，' +
       '然后 ssh -i /tmp/dsh_<id> <username>@<host> -p <port>。' +

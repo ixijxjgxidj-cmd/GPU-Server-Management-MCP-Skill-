@@ -68,6 +68,7 @@ Try in order; stop at the first that connects.
 | 1 | `key_path` file exists locally | `ssh -i <key_path> ...` — skip the decode |
 | 2 | `auth_method: key` | decode `key_content_b64`, `ssh -i /tmp/dsh_<id> ...` |
 | 3 | `auth_method: password` | use the `password` field directly |
+| 3.5 | `connection_type: cloudflare_tunnel` | host is a Cloudflare tunnel hostname; `ssh -o ProxyCommand="cloudflared access ssh --hostname %h" -i <key> <username>@<host>` (needs `cloudflared` installed + `cloudflared login` done on your machine) |
 | 4 | `connection_mode_label` contains 代理, or direct failed | lowest-latency entry in `reachable_proxies`:<br>`ssh -o ProxyCommand="nc -X 5 -x <proxy.host>:<proxy.port> %h %p" -i <key> <username>@<host> -p <port>` |
 | 5 | all of the above failed | `verify_server_connectivity { server_id }` → report the diagnosis |
 

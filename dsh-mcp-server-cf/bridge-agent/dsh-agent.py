@@ -189,6 +189,11 @@ def build_ssh_cmd(t, step, probe, legacy=False):
         pc = f'python3 {SOCKS_PC} {step["proxy_host"]} {step["proxy_port"]} ' \
              f'{step.get("proxy_username") or ""} {step.get("proxy_password") or ""} %h %p'
         common += ['-o', f'ProxyCommand={pc}']
+    elif step['mode'] == 'cloudflared':
+        # Cloudflare Tunnel: host is the tunnel hostname; SSH rides on cloudflared.
+        # cloudflared must be installed + logged in on the jump-box. If it's absent
+        # this step fails fast (ProxyCommand exec error) and the next step runs.
+        common += ['-o', f'ProxyCommand=cloudflared access ssh --hostname %h']
     keyf = key_file_for(t)
     if t['auth_method'] == 'key' and keyf:
         common += ['-i', keyf]

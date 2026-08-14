@@ -308,6 +308,7 @@ export const HTML = `<!DOCTYPE html>
         card.appendChild(row);
       }
       addInfoRow('地址', s.host+':'+s.port);
+      addInfoRow('连接', (s.connection_type === 'cloudflare_tunnel') ? '☁️ CF隧道' : (s.connection_mode_label || '标准SSH'));
       addInfoRow('GPU', s.gpu_model||'N/A');
       if (s.gpu_count && s.gpu_count > 0) {
         addInfoRow('GPU分配', (s.gpu_sharing_mode === 'exclusive' ? '🔒 独占(训练)' : '🤝 共享(推理)') + ' · ' + s.gpu_count + '卡');
@@ -643,6 +644,7 @@ export const HTML = `<!DOCTYPE html>
         '<div class="form-group"><label>厂商URL</label><input id="add-vendor-url" placeholder="https://cloud.example.com"></div>' +
         '<div class="form-group"><label>备注</label><textarea id="add-notes" rows="2" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-size:13px;resize:vertical" placeholder="服务器的用途、注意事项等"></textarea></div>' +
         '<div style="margin:12px 0"><strong>连接方式</strong></div>' +
+        '<div class="form-group"><label>连接形式</label><select id="add-connection-type"><option value="standard">标准SSH（直连/代理）</option><option value="cloudflare_tunnel">Cloudflare隧道（cloudflared access ssh）</option></select></div>' +
         '<div class="toggle-group"><label><input type="checkbox" id="add-v2ray"> 有V2RayN</label><label><input type="checkbox" id="add-direct-proxy" checked> V2RayN时可直连</label><label><input type="checkbox" id="add-direct-no-proxy"> 无代理时直连</label></div>' +
         '<div id="verify-results" style="margin-top:12px"></div>' +
         '<div class="modal-actions"><button class="btn-primary" onclick="verifyAndSave()">验证并保存</button><button onclick="closeModal()">取消</button></div>'
@@ -738,6 +740,7 @@ export const HTML = `<!DOCTYPE html>
         gpu_model: document.getElementById('add-gpu').value||null, gpu_memory_gb: document.getElementById('add-gpu-mem').value?parseInt(document.getElementById('add-gpu-mem').value):null,
         cpu_cores: document.getElementById('add-cpu').value?parseInt(document.getElementById('add-cpu').value):null, ram_gb: document.getElementById('add-ram').value?parseInt(document.getElementById('add-ram').value):null,
         v2ray_available: document.getElementById('add-v2ray').checked, direct_when_proxy_available: document.getElementById('add-direct-proxy').checked, direct_when_no_proxy: document.getElementById('add-direct-no-proxy').checked,
+        connection_type: document.getElementById('add-connection-type') ? document.getElementById('add-connection-type').value : 'standard',
         vendor_url: vendorUrlEl ? (vendorUrlEl.value||null) : null,
         notes: document.getElementById('add-notes') ? document.getElementById('add-notes').value||null : null,
       };
@@ -989,9 +992,11 @@ export const HTML = `<!DOCTYPE html>
         notesGroup.appendChild(notesTa);
         content.appendChild(notesGroup);
 
-        // Connection mode toggles
+        // Connection type selector + mode toggles
+        var _ct = s.connection_type || 'standard';
         var connDiv = document.createElement('div');
         connDiv.innerHTML = '<div style="margin:12px 0"><strong>连接方式</strong></div>'+
+          '<div class="form-group"><label>连接形式</label><select id="edit-connection-type"><option value="standard"'+(_ct==='standard'?' selected':'')+'>标准SSH（直连/代理）</option><option value="cloudflare_tunnel"'+(_ct==='cloudflare_tunnel'?' selected':'')+'>Cloudflare隧道（cloudflared access ssh）</option></select></div>'+
           '<div class="toggle-group">'+
           '<label><input type="checkbox" id="edit-v2ray"'+(s.proxy?.v2ray_available||s.v2ray_available?' checked':'')+'> 有V2RayN</label>'+
           '<label><input type="checkbox" id="edit-direct-proxy"'+(s.proxy?.direct_when_proxy_available||s.direct_when_proxy_available?' checked':'')+'> V2RayN时可直连</label>'+
@@ -1027,6 +1032,7 @@ export const HTML = `<!DOCTYPE html>
         disk_gb: document.getElementById('edit-disk').value ? parseInt(document.getElementById('edit-disk').value) : null,
         vendor_url: document.getElementById('edit-vendor-url').value||null,
         notes: document.getElementById('edit-notes') ? document.getElementById('edit-notes').value||null : null,
+        connection_type: document.getElementById('edit-connection-type') ? document.getElementById('edit-connection-type').value : 'standard',
         v2ray_available: document.getElementById('edit-v2ray').checked ? 1 : 0,
         direct_when_proxy_available: document.getElementById('edit-direct-proxy').checked ? 1 : 0,
         direct_when_no_proxy: document.getElementById('edit-direct-no-proxy').checked ? 1 : 0,
