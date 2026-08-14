@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { Env } from './db/schema';
 import { handleMcpRequest } from './mcp/handler';
-import { createSession, handleSseConnection, getSession, removeSession } from './mcp/transport';
+import { createSession, handleSseConnection, getSession, removeSession, sendResponse } from './mcp/transport';
 import serversApi from './api/servers';
 import proxiesApi from './api/proxies';
 import verifyApi from './api/verify';
@@ -26,15 +26,30 @@ app.get('/mcp', async (c) => {
 });
 
 // POST: client sends JSON-RPC messages here
+// Supports both SSE transport (?session=xxx) and Streamable HTTP transport (direct POST)
 app.post('/mcp', async (c) => {
-  const sessionId = c.req.query('session');
-  if (!sessionId || !getSession(sessionId)) {
-    return c.json({ error: 'Invalid or expired session' }, 400);
+  const body = await c.req.json();
+  const ctx = { env: c.env, db: c.env.DB };
+
+  // Determine mode: session query param = SSE mode, else Streamable HTTP
+  const sessionId = c.req.query('session') || c.req.header('Mcp-Session-Id');
+  if (sessionId && getSession(sessionId)) {
+    // SSE mode: send response via the SSE stream
+    const response = await handleMcpRequest(body, ctx);
+    sendResponse(sessionId, response);
+    return c.json({ accepted: true });
   }
 
-  const body = await c.req.json();
-  await handleMcpRequest(body, sessionId, { env: c.env, db: c.env.DB });
-  return c.json({ accepted: true });
+  // Streamable HTTP mode: process and return the response directly
+  const response = await handleMcpRequest(body, ctx);
+
+  // For initialize, set a session header so the client can reuse it
+  if (body?.method === 'initialize') {
+    const newSession = createSession();
+    c.header('Mcp-Session-Id', newSession.id);
+  }
+
+  return c.json(response);
 });
 
 // === REST API Routes ===

@@ -6,7 +6,7 @@ import { testViaSocks5 } from '../../probe/socks5';
 export const verifyConnectivityTool: McpTool = {
   definition: {
     name: 'verify_server_connectivity',
-    description: '对指定服务器执行全面的连通性测试。测试包括：1) 直连SSH端口探测；2) 通过每个代理节点测试SSH连接。测试结果会自动更新服务器在线状态并缓存每个代理的可达性数据。当服务器状态异常、连接不稳定、或者想确认哪个代理最快时使用。服务器必须先已添加（通过 add_server）。',
+    description: '对指定服务器执行全面的连通性测试：1) 直连SSH端口探测；2) 通过每个代理测试SSH连接。结果自动更新在线状态并缓存每个代理的可达性(供 get_servers 返回)。服务器需先经 upsert_server 登记。',
     inputSchema: {
       type: 'object',
       properties: {

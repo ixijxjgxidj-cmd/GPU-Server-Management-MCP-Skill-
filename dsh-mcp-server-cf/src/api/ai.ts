@@ -49,9 +49,12 @@ app.post('/extract-server', async (c) => {
       text: `Extract server connection information from the following content. Return ONLY valid JSON with these fields:
 {
   "name": "server name/hostname",
-  "host": "IP address or hostname",
+  "host": "SSH connection address — use public IP if available, otherwise internal IP",
   "port": 22,
-  "username": "ssh username",
+  "username": "SSH login username (NOT the web console username, find the actual SSH user)",
+  "ssh_username": "same as 'username' — the SSH login user",
+  "internal_ip": "private/internal IP address (10.x.x.x, 172.x.x.x, 192.168.x.x, or cloud private IP)",
+  "external_ip": "public/external IP address if visible",
   "auth_method": "key or password",
   "key_content": "full private key content if provided (ensure proper line breaks)",
   "password": "password if auth_method is password",
@@ -66,6 +69,8 @@ app.post('/extract-server', async (c) => {
 }
 
 Rules:
+- CRITICAL: Distinguish SSH username from web console username. The SSH user is what you use with "ssh user@host", NOT the cloud console login.
+- CRITICAL: Distinguish internal/private IP from external/public IP. Set "host" to the public IP if visible, otherwise internal IP.
 - If you see an SSH private key (-----BEGIN...), set auth_method to "key" and put the FULL key in key_content. Preserve the exact format with proper line breaks.
 - If you see a password, set auth_method to "password" and put it in the password field.
 - For images, read all visible text including IPs, credentials, GPU info, etc.
@@ -96,11 +101,17 @@ Rules:
   }
 
   try {
-    const response = await fetch(apiUrl.replace(/\/$/, '') + '/chat/completions', {
+    const baseUrl = apiUrl.replace(/\/$/, '');
+    // OpenAI-compatible API path: /v1/chat/completions
+    const apiPath = baseUrl.includes('/v1/') ? '/chat/completions' : '/v1/chat/completions';
+    const fullUrl = baseUrl + apiPath;
+
+    const response = await fetch(fullUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'Authorization': `Bearer ${apiKey}`,
+        'User-Agent': 'dsh-mcp-server/1.0'
       },
       body: JSON.stringify({
         model: modelName,
@@ -115,14 +126,15 @@ Rules:
           }
         ],
         temperature: 0.1,
-        max_tokens: 2000,
-        response_format: { type: 'json_object' }
+        max_tokens: 2000
       })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      return c.json({ error: `AI model API error (${response.status}): ${errorText}` }, 502);
+      return c.json({
+        error: `AI model API error (${response.status}) calling ${fullUrl}. Response: ${errorText || '(empty)'}`
+      }, 502);
     }
 
     const result: any = await response.json();
@@ -202,5 +214,85 @@ function formatSshKey(key: string): string {
   // If no recognizable format, return as-is (user may need to correct)
   return cleaned;
 }
+
+/**
+ * POST /api/ai/extract-proxy
+ * Accepts pasted text or images and extracts proxy node information.
+ */
+app.post('/extract-proxy', async (c) => {
+  const apiUrl = c.env.AI_MODEL_API_URL;
+  const apiKey = c.env.AI_MODEL_API_KEY;
+  const modelName = c.env.AI_MODEL_NAME || 'gpt-4o';
+
+  if (!apiUrl || !apiKey) {
+    return c.json({ error: 'AI model not configured.' }, 400);
+  }
+
+  const body = await c.req.json();
+  const { text, images } = body;
+
+  if (!text && (!images || images.length === 0)) {
+    return c.json({ error: 'No content provided.' }, 400);
+  }
+
+  const systemMsg = 'You are a proxy node information extraction assistant. Extract structured SOCKS5/HTTP proxy connection details from user-provided text or images. Return ONLY valid JSON.';
+
+  const userMsg = `Extract proxy/VPN node information from the following content. Return ONLY valid JSON with these fields:
+{
+  "name": "proxy node name/hostname",
+  "host": "proxy server IP or domain",
+  "port": 1080,
+  "username": "proxy auth username (if any)",
+  "password": "proxy auth password (if any)",
+  "location": "geographic location like Hong Kong, Japan, US West",
+  "protocol": "socks5 or http"
+}
+
+Rules:
+- Default port is 1080 for SOCKS5, 3128 for HTTP
+- If you see subscription info or proxy config text, extract all visible nodes
+- If multiple proxies are visible, return the first/primary one
+- Return JSON ONLY, no other text.`;
+
+  const userContent: unknown[] = [{ type: 'text', text: userMsg }];
+  if (text) userContent.push({ type: 'text', text: `Content to extract from:\n\n${text}` });
+  if (images && Array.isArray(images)) {
+    for (const img of images) {
+      userContent.push({ type: 'image_url', image_url: { url: `data:${img.mime_type || 'image/png'};base64,${img.base64}` } });
+    }
+  }
+
+  try {
+    const baseUrl = apiUrl.replace(/\/$/, '');
+    const apiPath = baseUrl.includes('/v1/') ? '/chat/completions' : '/v1/chat/completions';
+    const response = await fetch(baseUrl + apiPath, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`, 'User-Agent': 'dsh-mcp-server/1.0' },
+      body: JSON.stringify({ model: modelName, messages: [{ role: 'system', content: systemMsg }, { role: 'user', content: userContent }], temperature: 0.1, max_tokens: 1000 })
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      return c.json({ error: `AI model API error (${response.status}): ${err}` }, 502);
+    }
+
+    const result: any = await response.json();
+    const content = result.choices?.[0]?.message?.content;
+    if (!content) return c.json({ error: 'AI model returned empty response' }, 502);
+
+    let extracted: any;
+    try { extracted = JSON.parse(content); } catch {
+      const m = content.match(/\{[\s\S]*\}/);
+      if (m) extracted = JSON.parse(m[0]); else return c.json({ error: 'Failed to parse AI response' }, 502);
+    }
+
+    if (!extracted.port) extracted.port = extracted.protocol === 'http' ? 3128 : 1080;
+    if (!extracted.protocol) extracted.protocol = 'socks5';
+
+    return c.json({ success: true, data: extracted });
+  } catch (err) {
+    return c.json({ error: `AI model call failed: ${err}` }, 502);
+  }
+});
 
 export default app;
