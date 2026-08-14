@@ -25,12 +25,13 @@ export interface ServerWithLoad {
 export interface ServerCapacity {
   server_id: string;
   name: string;
-  gpu_count: number;        // available cards
+  gpu_count: number;        // available cards (exclusive: free whole cards; shared: physical cards)
   gpu_mem_gb: number;       // total available GPU memory (GB)
   ram_gb: number;           // available RAM (GB)
   disk_gb: number;          // available disk (GB)
   cpu_cores: number;        // total cores
   stale: boolean;           // true when capacity came from static spec, not live load
+  gpu_sharing_mode: 'shared' | 'exclusive'; // shared: meter by VRAM, co-locate; exclusive: whole cards
 }
 
 export interface TaskSpec {

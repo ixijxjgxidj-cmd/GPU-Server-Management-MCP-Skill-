@@ -93,6 +93,7 @@ export const getServersTool: McpTool = {
         tags: s.tags ? JSON.parse(s.tags) : [],
         notes: s.notes,
         gpu_count: s.gpu_count,
+        gpu_sharing_mode: s.gpu_sharing_mode,
         gpu_util_pct: s.gpu_util_pct,
         gpu_mem_free_gb: s.gpu_mem_free_gb,
         ram_free_gb: s.ram_free_gb,

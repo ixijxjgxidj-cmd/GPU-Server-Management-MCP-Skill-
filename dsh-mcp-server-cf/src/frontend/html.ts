@@ -902,6 +902,9 @@ export const HTML = `<!DOCTYPE html>
 
         addInput('GPU型号', 'edit-gpu', 'text', s.capabilities?.gpu_model||s.gpu_model||'');
         addInput('显存(GB)', 'edit-gpu-mem', 'number', s.capabilities?.gpu_memory_gb||s.gpu_memory_gb||'');
+        addInput('GPU卡数', 'edit-gpu-count', 'number', s.gpu_count||'');
+        var _sm = s.gpu_sharing_mode || 'shared';
+        addField('GPU分配模式', '<select id="edit-gpu-sharing-mode"><option value="shared"'+(_sm==='shared'?' selected':'')+'>共享(按显存,适合推理)</option><option value="exclusive"'+(_sm==='exclusive'?' selected':'')+'>独占(整卡,适合训练)</option></select>');
         addInput('CPU核数', 'edit-cpu', 'number', s.capabilities?.cpu_cores||s.cpu_cores||'');
         addInput('内存(GB)', 'edit-ram', 'number', s.capabilities?.ram_gb||s.ram_gb||'');
         addInput('磁盘(GB)', 'edit-disk', 'number', s.capabilities?.disk_gb||s.disk_gb||'');
@@ -948,6 +951,8 @@ export const HTML = `<!DOCTYPE html>
         auth_method: document.getElementById('edit-auth-method').value,
         gpu_model: document.getElementById('edit-gpu').value||null,
         gpu_memory_gb: document.getElementById('edit-gpu-mem').value ? parseInt(document.getElementById('edit-gpu-mem').value) : null,
+        gpu_count: document.getElementById('edit-gpu-count') && document.getElementById('edit-gpu-count').value ? parseInt(document.getElementById('edit-gpu-count').value) : null,
+        gpu_sharing_mode: document.getElementById('edit-gpu-sharing-mode') ? document.getElementById('edit-gpu-sharing-mode').value : 'shared',
         cpu_cores: document.getElementById('edit-cpu').value ? parseInt(document.getElementById('edit-cpu').value) : null,
         ram_gb: document.getElementById('edit-ram').value ? parseInt(document.getElementById('edit-ram').value) : null,
         disk_gb: document.getElementById('edit-disk').value ? parseInt(document.getElementById('edit-disk').value) : null,

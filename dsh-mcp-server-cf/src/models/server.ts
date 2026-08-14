@@ -9,6 +9,7 @@ export interface ProxyConfig {
 export interface ServerCapabilities {
   gpu_model?: string;
   gpu_memory_gb?: number;
+  gpu_count?: number;
   cpu_cores?: number;
   ram_gb?: number;
   disk_gb?: number;
@@ -51,6 +52,8 @@ export interface ServerDetail {
   status_last_check: string | null;
   status_ping_ms: number | null;
   status_error: string | null;
+  gpu_count: number | null;
+  gpu_sharing_mode: 'shared' | 'exclusive';
   default_proxy_id: string | null;
   reachable_proxies: Array<{ id: string; name: string; latency_ms: number | null }>;
   tags: string[];
@@ -96,6 +99,7 @@ export function dbServerToDetail(
     capabilities: {
       gpu_model: db.gpu_model ?? undefined,
       gpu_memory_gb: db.gpu_memory_gb ?? undefined,
+      gpu_count: db.gpu_count ?? undefined,
       cpu_cores: db.cpu_cores ?? undefined,
       ram_gb: db.ram_gb ?? undefined,
       disk_gb: db.disk_gb ?? undefined,
@@ -105,6 +109,8 @@ export function dbServerToDetail(
     status_last_check: db.status_last_check,
     status_ping_ms: db.status_ping_ms,
     status_error: db.status_error,
+    gpu_count: db.gpu_count,
+    gpu_sharing_mode: db.gpu_sharing_mode === 'exclusive' ? 'exclusive' : 'shared',
     default_proxy_id: db.default_proxy_id,
     reachable_proxies: reachableProxies ?? [],
     tags: db.tags ? JSON.parse(db.tags) : [],

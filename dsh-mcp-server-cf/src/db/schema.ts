@@ -37,6 +37,7 @@ export interface DBServer {
   disk_free_gb: number | null;
   running_tasks: number | null;
   load_updated_at: string | null;
+  gpu_sharing_mode: 'shared' | 'exclusive'; // shared (default): meter GPU by free VRAM; exclusive: whole cards
   created_at: string;
   updated_at: string;
 }

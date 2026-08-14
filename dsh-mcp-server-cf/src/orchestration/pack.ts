@@ -33,7 +33,11 @@ function reasonFor(rem: Rem, t: TaskSpec): string {
 }
 
 function deduct(rem: Rem, t: TaskSpec): void {
-  rem.gpu_count -= taskGpuCount(t);
+  // In shared mode, cards stay schedulable for co-located tasks; only VRAM (and the
+  // other dimensions) shrink. In exclusive mode a task claims whole cards.
+  if (rem.gpu_sharing_mode === 'exclusive') {
+    rem.gpu_count -= taskGpuCount(t);
+  }
   rem.gpu_mem_gb -= taskTotalVram(t);
   rem.ram_gb -= (t.min_ram_gb ?? 0);
   rem.disk_gb -= (t.min_disk_gb ?? 0);

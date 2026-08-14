@@ -13,6 +13,7 @@ function baseServer(over: Partial<DBServer> = {}): DBServer {
     task_started_at: null, notes: null, enabled: 1, ssh_banner: null, os_hint: null,
     gpu_util_pct: null, gpu_mem_free_gb: null, ram_free_gb: null, disk_free_gb: null,
     running_tasks: null, load_updated_at: null,
+    gpu_sharing_mode: 'exclusive',
     created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
     ...over,
   };
@@ -46,6 +47,13 @@ describe('resolveCapacity', () => {
   it('free card count = gpu_count - running_tasks when load present', () => {
     const s = baseServer({ gpu_count: 8, running_tasks: 3, load_updated_at: now });
     expect(resolveCapacity(s, now).gpu_count).toBe(5);
+  });
+  it('shared mode keeps all physical cards schedulable regardless of running_tasks', () => {
+    const s = baseServer({ gpu_sharing_mode: 'shared', gpu_count: 1, running_tasks: 3, gpu_mem_free_gb: 8, load_updated_at: now });
+    const c = resolveCapacity(s, now);
+    expect(c.gpu_count).toBe(1);          // not clamped to 0 by running_tasks
+    expect(c.gpu_mem_gb).toBe(8);         // VRAM headroom is the real limit
+    expect(c.gpu_sharing_mode).toBe('shared');
   });
   it('falls back to static spec and marks stale when load absent', () => {
     const s = baseServer({ gpu_count: 4, gpu_memory_gb: 80, ram_gb: 512, disk_gb: 2000, cpu_cores: 64, load_updated_at: null });
