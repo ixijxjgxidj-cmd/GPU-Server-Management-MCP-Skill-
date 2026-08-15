@@ -21,6 +21,16 @@ function safeParseTasks(raw: string): Array<{ cpu?: number; mem?: number; cmd?: 
   }
 }
 
+/** Parse the stored datasets JSON defensively. */
+function safeParseDatasets(raw: string): Array<{ name: string; path: string; size_gb?: number }> {
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * The one-shot "how do I connect" tool.
  * Returns everything an agent needs to SSH into a server in a single call:
@@ -115,6 +125,18 @@ export const getServersTool: McpTool = {
         torch_version: s.torch_version,
         cuda_version: s.cuda_version,
         top_cpu_tasks: s.top_cpu_tasks ? safeParseTasks(s.top_cpu_tasks) : [],
+        datasets: s.datasets ? safeParseDatasets(s.datasets) : [],
+        server_expires_at: s.server_expires_at ?? null,
+        server_remaining_minutes: s.server_expires_at ? Math.round((new Date(s.server_expires_at).getTime() - Date.now()) / 60000) : null,
+        is_server_expiring_soon: s.server_expires_at ? (Math.round((new Date(s.server_expires_at).getTime() - Date.now()) / 60000) <= 60) : false,
+        current_task: s.current_task,
+        current_agent: s.current_agent,
+        task_started_at: s.task_started_at,
+        task_duration_minutes: s.task_duration_minutes ?? null,
+        task_expires_at: s.task_expires_at ?? null,
+        task_remaining_minutes: s.task_expires_at ? Math.round((new Date(s.task_expires_at).getTime() - Date.now()) / 60000) : null,
+        remaining_minutes: s.task_expires_at ? Math.round((new Date(s.task_expires_at).getTime() - Date.now()) / 60000) : null,
+        is_task_expired: s.task_expires_at ? (new Date(s.task_expires_at).getTime() - Date.now()) <= 0 : false,
         load_age_sec: loadAgeSec(s, now),
         notes_entries: (notesMap[s.id] ?? []).map(n => ({
           topic: n.topic, content: n.content, updated_by: n.updated_by, updated_at: n.updated_at,

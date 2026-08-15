@@ -21,7 +21,6 @@ export interface ServerWithLoad {
   notes_entries: ServerNoteEntry[];
 }
 
-// Resolved capacity used by the packer. Numbers are totals (e.g. total free VRAM).
 export interface ServerCapacity {
   server_id: string;
   name: string;
@@ -32,6 +31,7 @@ export interface ServerCapacity {
   cpu_cores: number;        // total cores
   stale: boolean;           // true when capacity came from static spec, not live load
   gpu_sharing_mode: 'shared' | 'exclusive'; // shared: meter by VRAM, co-locate; exclusive: whole cards
+  datasets?: { name: string; path: string; size_gb?: number }[]; // Available datasets
 }
 
 export interface TaskSpec {
@@ -41,6 +41,7 @@ export interface TaskSpec {
   min_ram_gb?: number;
   min_disk_gb?: number;
   min_cpu_cores?: number;
+  preferred_datasets?: string[]; // dataset names required by the task
 }
 
 export interface Allocation {

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Env } from '../db/schema';
-import { listServers, getServerById, createServer, updateServer, deleteServer, queryServersByAbility, getReachability, updateServerTask, releaseServerTask, updateServerStatus, setServerEnabled } from '../db/queries';
+import { listServers, getServerById, createServer, updateServer, deleteServer, queryServersByAbility, getReachability, updateServerTask, releaseServerTask, updateServerStatus, setServerEnabled, listBackupIndexes, deleteBackupIndexById, searchBackupIndexesRAG } from '../db/queries';
 import { dbServerToDetail } from '../models/server';
 import { tcpPing, grabSSHBanner } from '../probe/ping';
 
@@ -24,6 +24,72 @@ app.get('/query', async (c) => {
   };
   const servers = await queryServersByAbility(c.env.DB, filters);
   return c.json(servers);
+});
+
+// Get all backup indexes (with optional RAG semantic search ?q=...)
+app.get('/backups/all', async (c) => {
+  const q = c.req.query('q');
+  const type = c.req.query('type');
+  const host = c.req.query('host');
+  if (q && q.trim()) {
+    const results = await searchBackupIndexesRAG(c.env.DB, q.trim(), 50);
+    return c.json(results);
+  }
+  const all = await listBackupIndexes(c.env.DB, { server_host: host, backup_type: type });
+  return c.json(all);
+});
+
+// Delete a backup index
+app.delete('/backups/:id', async (c) => {
+  const id = c.req.param('id');
+  const success = await deleteBackupIndexById(c.env.DB, id);
+  return c.json({ success, id });
+});
+
+// Get all pre-cached datasets across all servers
+app.get('/datasets/all', async (c) => {
+  const servers = await listServers(c.env.DB, undefined, false);
+  const allDatasets: Array<{
+    server_id: string;
+    server_name: string;
+    server_host: string;
+    server_port: number;
+    status_online: boolean;
+    name: string;
+    path: string;
+    size_gb: number;
+    description: string;
+    added_at?: string;
+  }> = [];
+
+  for (const s of servers) {
+    if (!s.datasets) continue;
+    try {
+      const list = JSON.parse(s.datasets);
+      if (Array.isArray(list)) {
+        for (const item of list) {
+          if (item && item.name && item.path) {
+            allDatasets.push({
+              server_id: s.id,
+              server_name: s.name,
+              server_host: s.host,
+              server_port: s.port,
+              status_online: Boolean(s.status_online),
+              name: String(item.name),
+              path: String(item.path),
+              size_gb: typeof item.size_gb === 'number' ? item.size_gb : 0,
+              description: String(item.description || ''),
+              added_at: item.added_at,
+            });
+          }
+        }
+      }
+    } catch {
+      // ignore parse error
+    }
+  }
+
+  return c.json(allDatasets);
 });
 
 // Get single server (with reachable proxies)
@@ -78,21 +144,48 @@ app.delete('/:id', async (c) => {
   return c.json({ success });
 });
 
-// Claim server (mark as in use)
+// Claim server (mark as in use with optional countdown timer)
 app.post('/:id/claim', async (c) => {
   const body = await c.req.json();
   const server = await getServerById(c.env.DB, c.req.param('id'));
   if (!server) return c.json({ error: 'Not found' }, 404);
-  await updateServerTask(c.env.DB, server.id, {
-    agent: body.agent || 'unknown',
-    task: body.task || 'unspecified',
+  const duration = typeof body.duration_minutes === 'number' && body.duration_minutes > 0 ? body.duration_minutes : undefined;
+  const { started_at, expires_at } = await updateServerTask(c.env.DB, server.id, {
+    agent: body.agent || 'web-user',
+    task: body.task || 'manual-task',
+    duration_minutes: duration,
   });
+  if (body.server_expires_at !== undefined) {
+    await updateServer(c.env.DB, server.id, {
+      server_expires_at: body.server_expires_at,
+    });
+  }
   return c.json({
     success: true,
     server_id: server.id,
     server_name: server.name,
-    claimed_by: body.agent,
-    task: body.task,
+    claimed_by: body.agent || 'web-user',
+    task: body.task || 'manual-task',
+    duration_minutes: duration ?? null,
+    started_at,
+    expires_at,
+    server_expires_at: body.server_expires_at !== undefined ? body.server_expires_at : server.server_expires_at,
+  });
+});
+
+// Update physical server lease / expiration
+app.post('/:id/lease', async (c) => {
+  const body = await c.req.json();
+  const server = await getServerById(c.env.DB, c.req.param('id'));
+  if (!server) return c.json({ error: 'Not found' }, 404);
+  const serverExpiresAt = body.server_expires_at !== undefined ? body.server_expires_at : null;
+  await updateServer(c.env.DB, server.id, {
+    server_expires_at: serverExpiresAt,
+  });
+  return c.json({
+    success: true,
+    server_id: server.id,
+    server_expires_at: serverExpiresAt,
   });
 });
 
@@ -156,6 +249,77 @@ app.post('/:id/disable', async (c) => {
   if (!server) return c.json({ error: 'Not found' }, 404);
   await setServerEnabled(c.env.DB, server.id, false);
   return c.json({ success: true, enabled: false, server_id: server.id });
+});
+
+// ===== Dataset & Backup Management APIs =====
+
+// Register or update a dataset on a server
+app.post('/:id/datasets', async (c) => {
+  const serverId = c.req.param('id');
+  const body = await c.req.json();
+  const name = body.name?.trim();
+  const path = body.path?.trim();
+  const sizeGb = typeof body.size_gb === 'number' ? body.size_gb : parseFloat(body.size_gb) || 0;
+  const description = body.description?.trim() || '';
+
+  if (!name || !path) {
+    return c.json({ error: 'Name and path are required' }, 400);
+  }
+
+  const server = await getServerById(c.env.DB, serverId);
+  if (!server) return c.json({ error: 'Server not found' }, 404);
+
+  let datasets: Array<{ name: string; path: string; size_gb?: number; description?: string; added_at?: string }> = [];
+  if (server.datasets) {
+    try { datasets = JSON.parse(server.datasets); } catch {}
+  }
+
+  const existingIdx = datasets.findIndex(d => d.name === name);
+  const now = new Date().toISOString();
+  if (existingIdx >= 0) {
+    datasets[existingIdx] = {
+      name,
+      path,
+      size_gb: sizeGb,
+      description,
+      added_at: datasets[existingIdx].added_at || now,
+    };
+  } else {
+    datasets.push({
+      name,
+      path,
+      size_gb: sizeGb,
+      description,
+      added_at: now,
+    });
+  }
+
+  await c.env.DB.prepare('UPDATE servers SET datasets = ? WHERE id = ?')
+    .bind(JSON.stringify(datasets), serverId)
+    .run();
+
+  return c.json({ success: true, server_id: serverId, dataset: { name, path, size_gb: sizeGb, description } });
+});
+
+// Remove a dataset from a server
+app.delete('/:id/datasets/:name', async (c) => {
+  const serverId = c.req.param('id');
+  const name = decodeURIComponent(c.req.param('name'));
+
+  const server = await getServerById(c.env.DB, serverId);
+  if (!server) return c.json({ error: 'Server not found' }, 404);
+
+  let datasets: Array<{ name: string; path: string; size_gb?: number; description?: string; added_at?: string }> = [];
+  if (server.datasets) {
+    try { datasets = JSON.parse(server.datasets); } catch {}
+  }
+
+  const filtered = datasets.filter(d => d.name !== name);
+  await c.env.DB.prepare('UPDATE servers SET datasets = ? WHERE id = ?')
+    .bind(JSON.stringify(filtered), serverId)
+    .run();
+
+  return c.json({ success: true, server_id: serverId, removed_name: name });
 });
 
 export default app;

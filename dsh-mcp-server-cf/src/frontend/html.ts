@@ -4,101 +4,235 @@ export const HTML = `<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DSH 服务器管理</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
-      --bg: #0f172a; --card-bg: #1e293b; --text: #e2e8f0;
-      --text-dim: #94a3b8; --accent: #3b82f6; --green: #22c55e;
-      --yellow: #eab308; --red: #ef4444; --border: #334155;
+      --bg: #09090b; --card-bg: #18181b; --card-hover: #27272a; 
+      --text: #f4f4f5; --text-dim: #a1a1aa; 
+      --accent: #3b82f6; --accent-hover: #2563eb; --accent-glow: rgba(59, 130, 246, 0.5);
+      --green: #10b981; --green-bg: rgba(16, 185, 129, 0.1);
+      --yellow: #f59e0b; --yellow-bg: rgba(245, 158, 11, 0.1);
+      --red: #ef4444; --red-bg: rgba(239, 68, 68, 0.1);
+      --border: #27272a; --border-hover: #3f3f46;
+      --font-main: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-           background: var(--bg); color: var(--text); min-height: 100vh; }
-    .nav { display: flex; gap: 0; background: var(--card-bg); border-bottom: 1px solid var(--border); }
-    .nav button { padding: 12px 24px; background: none; color: var(--text-dim); border: none;
-                  border-bottom: 2px solid transparent; cursor: pointer; font-size: 14px; }
-    .nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
-    .header { display: flex; justify-content: space-between; align-items: center;
-              padding: 16px 24px; gap: 12px; flex-wrap: wrap; }
-    .header h1 { font-size: 20px; font-weight: 600; }
-    .status-bar { display: flex; gap: 12px; align-items: center; }
-    .status-badge { padding: 4px 10px; border-radius: 12px; font-size: 12px; cursor: pointer; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-            gap: 16px; padding: 0 24px 24px; }
-    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px;
-            padding: 16px; position: relative; transition: border-color 0.2s; }
-    .card:hover { border-color: var(--accent); }
-    .card .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
-    .card .title { font-size: 16px; font-weight: 600; margin-bottom: 12px; display: flex;
-                   align-items: center; justify-content: space-between; }
-    .card .info-row { display: flex; justify-content: space-between; padding: 4px 0;
-                      font-size: 13px; color: var(--text-dim); }
-    .card .util-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;
-                      flex: 1; margin: 0 8px; }
-    .card .util-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
-    .card .actions { display: flex; gap: 8px; margin-top: 12px; padding-top: 12px;
-                     border-top: 1px solid var(--border); }
-    .card .actions button { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border);
-                           background: none; color: var(--text); cursor: pointer; font-size: 12px; }
-    .card .actions button:hover { background: var(--accent); border-color: var(--accent); }
-    .card .actions button.danger:hover { background: var(--red); border-color: var(--red); }
-    .btn-primary { padding: 8px 16px; border-radius: 8px; border: none;
-                   background: var(--accent); color: white; cursor: pointer; font-size: 14px; }
-    .btn-primary:hover { opacity: 0.9; }
-    .search-input { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
-                    background: var(--card-bg); color: var(--text); font-size: 14px; width: 200px; }
-    .ai-loading { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 32px; }
-    .ai-loading .spinner { width: 24px; height: 24px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .ai-section { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-    .ai-section .title { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--accent); }
-    .ai-section textarea { width: 100%; min-height: 80px; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text); font-size: 13px; font-family: inherit; resize: vertical; }
-    .ai-section textarea:focus { border-color: var(--accent); outline: none; }
-    .img-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
-    .img-grid .thumb { width: 80px; height: 60px; border-radius: 6px; overflow: hidden; position: relative; border: 1px solid var(--border); }
+    body { 
+      font-family: var(--font-main); 
+      background: var(--bg); 
+      color: var(--text); 
+      min-height: 100vh; 
+      overflow-x: hidden;
+      background-image: radial-gradient(circle at 50% 0%, #1a1a24 0%, transparent 50%);
+    }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+    .nav { 
+      display: flex; gap: 8px; padding: 12px 24px; 
+      background: rgba(24, 24, 27, 0.7); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border); 
+      position: sticky; top: 0; z-index: 50;
+    }
+    .nav button { 
+      padding: 8px 16px; background: transparent; color: var(--text-dim); 
+      border: 1px solid transparent; border-radius: 8px; cursor: pointer; 
+      font-size: 14px; font-weight: 500; transition: all 0.2s ease; 
+    }
+    .nav button:hover { color: var(--text); background: var(--border); }
+    .nav button.active { 
+      color: var(--text); background: var(--border);
+      border-color: var(--border-hover); box-shadow: 0 0 12px rgba(0,0,0,0.5);
+    }
+
+    .header { 
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 32px 24px 24px; gap: 16px; flex-wrap: wrap; 
+    }
+    .header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; background: linear-gradient(to right, #fff, #a1a1aa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .status-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .status-badge { 
+      padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 500;
+      background: var(--card-bg); border: 1px solid var(--border);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2); cursor: pointer; transition: all 0.2s;
+    }
+    .status-badge:hover { border-color: var(--text-dim); transform: translateY(-1px); }
+
+    .grid { 
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: 20px; padding: 0 24px 32px; 
+    }
+    .card { 
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px;
+      padding: 24px; position: relative; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+    }
+    .card:hover { 
+      border-color: var(--border-hover); 
+      transform: translateY(-4px); 
+      box-shadow: 0 10px 20px -5px rgba(0,0,0,0.4), 0 4px 6px -2px rgba(0,0,0,0.1);
+    }
+    .card .status-dot { 
+      width: 10px; height: 10px; border-radius: 50%; display: inline-block; 
+      margin-right: 10px; box-shadow: 0 0 8px currentColor;
+    }
+    .card .title { 
+      font-size: 18px; font-weight: 600; margin-bottom: 16px; display: flex;
+      align-items: center; justify-content: space-between; 
+    }
+    .card .info-row { 
+      display: flex; justify-content: space-between; padding: 8px 0;
+      font-size: 14px; color: var(--text-dim); border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+    .card .info-row:last-of-type { border-bottom: none; }
+    .card .info-row span:last-child { color: var(--text); font-weight: 500; text-align: right; }
+    
+    .card .util-bar { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; flex: 1; margin: 0 12px; }
+    .card .util-fill { height: 100%; border-radius: 3px; transition: width 0.3s ease; }
+
+    .card .actions { 
+      display: flex; gap: 8px; margin-top: 20px; padding-top: 16px;
+      border-top: 1px solid var(--border); flex-wrap: wrap;
+    }
+    .card .actions button { 
+      flex: 1; min-width: 60px; padding: 8px 12px; border-radius: 8px; 
+      border: 1px solid var(--border); background: rgba(255,255,255,0.03); 
+      color: var(--text); cursor: pointer; font-size: 13px; font-weight: 500;
+      transition: all 0.2s;
+    }
+    .card .actions button:hover { background: var(--border); border-color: var(--text-dim); }
+    .card .actions button.danger:hover { background: var(--red-bg); border-color: var(--red); color: var(--red); }
+
+    .btn-primary { 
+      padding: 10px 20px; border-radius: 10px; border: none;
+      background: linear-gradient(135deg, var(--accent), var(--accent-hover)); 
+      color: white; cursor: pointer; font-size: 14px; font-weight: 600; 
+      box-shadow: 0 4px 12px rgba(59,130,246,0.3); transition: all 0.2s;
+    }
+    .btn-primary:hover { 
+      transform: translateY(-1px); box-shadow: 0 6px 16px rgba(59,130,246,0.4); 
+      filter: brightness(1.1);
+    }
+    .search-input { 
+      padding: 10px 16px; border-radius: 10px; border: 1px solid var(--border);
+      background: rgba(24,24,27,0.8); color: var(--text); font-size: 14px; width: 240px; 
+      transition: all 0.2s; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .search-input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 2px var(--accent-glow); }
+
+    .modal-overlay { 
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center; z-index: 100; 
+      animation: fadeIn 0.2s ease-out;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .modal { 
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: 20px;
+      padding: 32px; max-width: 640px; width: 90%; max-height: 85vh; overflow-y: auto; 
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    
+    .modal h2 { margin-bottom: 24px; font-size: 24px; font-weight: 700; color: #fff; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 500; color: var(--text-dim); margin-bottom: 6px; }
+    .form-group input, .form-group select, .form-group textarea { 
+      width: 100%; padding: 10px 14px; border-radius: 10px;
+      border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px; 
+      transition: all 0.2s; font-family: var(--font-main);
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+      border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .toggle-group { display: flex; gap: 20px; margin-top: 8px; flex-wrap: wrap; }
+    .toggle-group label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: var(--text-dim); }
+    .toggle-group input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
+    .modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+    .modal-actions button:not(.btn-primary) {
+      padding: 10px 20px; border-radius: 10px; border: 1px solid var(--border);
+      background: transparent; color: var(--text); cursor: pointer; font-size: 14px; font-weight: 500;
+      transition: all 0.2s;
+    }
+    .modal-actions button:not(.btn-primary):hover { background: var(--border); }
+    
+    .modal-title-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .close-x { 
+      width: 32px; height: 32px; border-radius: 8px; border: none; background: rgba(255,255,255,0.05); 
+      color: var(--text-dim); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; 
+      transition: all 0.2s;
+    }
+    .close-x:hover { background: var(--red-bg); color: var(--red); }
+
+    .ai-section { 
+      background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); 
+      border-radius: 12px; padding: 20px; margin-bottom: 24px; 
+    }
+    .ai-section .title { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+    .ai-section textarea { border-color: rgba(59, 130, 246, 0.3); background: rgba(0,0,0,0.2); min-height: 100px; }
+    .ai-section textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+    
+    .img-grid { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0; }
+    .img-grid .thumb { 
+      width: 90px; height: 70px; border-radius: 8px; overflow: hidden; 
+      position: relative; border: 2px solid var(--border); box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
     .img-grid .thumb img { width: 100%; height: 100%; object-fit: cover; }
-    .img-grid .thumb .del { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; background: rgba(239,68,68,0.9); color: #fff; border: none; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-    .img-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 16px; text-align: center; cursor: pointer; transition: all 0.3s; margin-top: 8px; }
-    .img-zone:hover { border-color: var(--accent); background: rgba(59,130,246,0.05); }
-    .img-zone .hint { font-size: 12px; color: var(--text-dim); }
-    .extracted-info { padding: 12px 0; }
-    .extracted-info .field { display: flex; padding: 6px 0; border-bottom: 1px solid var(--border); }
-    .extracted-info .field:last-child { border-bottom: none; }
-    .extracted-info .field-label { min-width: 100px; color: var(--text-dim); font-size: 13px; }
-    .extracted-info .field-value { flex: 1; font-size: 13px; word-break: break-all; }
-    .extracted-info .field-value.key { font-family: monospace; font-size: 11px; max-height: 80px; overflow-y: auto; white-space: pre; }
-    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6);
-                     display: flex; align-items: center; justify-content: center; z-index: 100; }
-    .modal { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px;
-             padding: 24px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; }
-    .modal h2 { margin-bottom: 16px; }
-    .form-group { margin-bottom: 12px; }
-    .form-group label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 4px; }
-    .form-group input, .form-group select { width: 100%; padding: 8px 12px; border-radius: 6px;
-      border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px; }
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .toggle-group { display: flex; gap: 16px; }
-    .toggle-group label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
-    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
-    .verify-step { display: flex; align-items: center; gap: 8px; padding: 8px 0;
-                   border-bottom: 1px solid var(--border); font-size: 14px; }
-    .proxy-card { padding: 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; }
-    .proxy-card .proxy-name { font-weight: 600; }
+    .img-grid .thumb .del { 
+      position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; 
+      border-radius: 50%; background: var(--red); color: #fff; border: none; 
+      font-size: 12px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; 
+      opacity: 0.8; transition: opacity 0.2s;
+    }
+    .img-grid .thumb .del:hover { opacity: 1; }
+
+    .proxy-card { 
+      padding: 16px; border: 1px solid var(--border); border-radius: 12px; 
+      margin-bottom: 12px; background: var(--card-bg); display: flex; justify-content: space-between;
+      align-items: center; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .proxy-card:hover { border-color: var(--border-hover); transform: translateX(4px); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+    .proxy-card .proxy-name { font-weight: 600; font-size: 16px; margin-bottom: 6px; color: #fff; }
     .proxy-card .proxy-info { font-size: 13px; color: var(--text-dim); }
-    .tag { display: inline-block; padding: 2px 8px; border-radius: 4px;
-           background: var(--accent); font-size: 11px; margin: 2px; }
-    .modal-title-bar { display: flex; justify-content: space-between; align-items: center; }
-    .close-x { width: 28px; height: 28px; border-radius: 6px; border: none; background: transparent; color: var(--text-dim); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-    .close-x:hover { background: rgba(239,68,68,0.15); color: var(--red); }
+    .tag { 
+      display: inline-block; padding: 4px 10px; border-radius: 6px;
+      background: var(--accent-glow); color: #60a5fa; font-size: 12px; font-weight: 600; margin: 2px; 
+    }
+    
+    .verify-step { 
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 14px; 
+      background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 4px;
+    }
+    .verify-step:last-child { border-bottom: none; }
+    
+    .ai-loading { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 20px; background: rgba(59,130,246,0.05); border-radius: 8px; }
+    .ai-loading .spinner { width: 24px; height: 24px; border: 3px solid rgba(59,130,246,0.3); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    
+    table { width:100%; border-collapse: separate; border-spacing: 0; font-size: 14px; }
+    th { text-align:left; padding: 14px 16px; color: var(--text-dim); font-weight: 600; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02); }
+    th:first-child { border-top-left-radius: 12px; } th:last-child { border-top-right-radius: 12px; }
+    td { padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.03); color: var(--text); }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    
     @media (max-width: 600px) {
-      .grid { grid-template-columns: 1fr; padding: 0 12px 12px; }
-      .header { flex-direction: column; align-items: stretch; }
-      .form-row { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: 1fr; padding: 0 16px 24px; }
+      .header { flex-direction: column; align-items: stretch; padding: 24px 16px 16px; }
+      .form-row { grid-template-columns: 1fr; gap: 0; }
+      .nav { overflow-x: auto; white-space: nowrap; padding: 12px 16px; }
+      .card .actions { flex-direction: column; }
     }
   </style>
 </head>
 <body>
   <nav class="nav">
     <button onclick="switchPage('servers')" id="nav-servers" class="active">🖥️ 服务器</button>
+    <button onclick="switchPage('datasets')" id="nav-datasets">📦 数据集与预存</button>
     <button onclick="switchPage('proxies')" id="nav-proxies">🌐 代理池</button>
     <button onclick="switchPage('logs')" id="nav-logs">📋 使用记录</button>
   </nav>
@@ -114,7 +248,7 @@ export const HTML = `<!DOCTYPE html>
         <button class="btn-primary" onclick="showAddServer()">+ 添加</button>
       </div>
     </div>
-    <div id="sharingBar" style="margin:0 24px 12px;padding:12px 16px;border:1px solid var(--border);border-radius:10px;background:var(--card);display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <div id="sharingBar" style="margin:0 24px 12px;padding:12px 16px;border:1px solid var(--border);border-radius:10px;background:var(--card-bg);display:flex;align-items:center;gap:16px;flex-wrap:wrap">
       <div style="flex:1;min-width:220px">
         <div style="font-weight:600;margin-bottom:2px">GPU 均衡分配模式（全局统一切换）</div>
         <div id="sharingDesc" style="font-size:12px;color:var(--text-dim);line-height:1.5"></div>
@@ -125,6 +259,65 @@ export const HTML = `<!DOCTYPE html>
       </div>
     </div>
     <div class="grid" id="serverGrid"></div>
+  </div>
+  <div id="page-datasets" class="page" style="display:none">
+    <div class="header">
+      <div>
+        <h1 style="display:flex;align-items:center;gap:8px">📦 集群数据集与备份索引大盘</h1>
+        <p style="font-size:13px;color:var(--text-dim);margin-top:4px">
+          查看与管理各算力机的<b>预存数据集 (Dataset Affinity)</b> 及 <b>RAG 向量备份索引库</b>。所有备份索引均以源机 IP 为唯一计量生命周期（若机器被删除，索引自动同步清理）。
+        </p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn-primary" onclick="showRegisterDatasetModal()">+ 登记数据集</button>
+        <button class="btn-primary" onclick="refreshDatasetsPage()" style="background:rgba(255,255,255,0.08)">🔄 全部刷新</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:16px;margin:0 24px 20px;">
+      <div style="padding:16px;background:var(--card-bg);border:1px solid var(--border);border-radius:12px;">
+        <div style="font-size:12px;color:var(--text-dim)">📊 预存数据集总数</div>
+        <div id="datasetCountStat" style="font-size:24px;font-weight:700;color:var(--primary);margin-top:4px">0 个</div>
+      </div>
+      <div style="padding:16px;background:var(--card-bg);border:1px solid var(--border);border-radius:12px;">
+        <div style="font-size:12px;color:var(--text-dim)">💾 预估总存储占用</div>
+        <div id="datasetSizeStat" style="font-size:24px;font-weight:700;color:var(--green);margin-top:4px">0 GB</div>
+      </div>
+      <div style="padding:16px;background:var(--card-bg);border:1px solid var(--border);border-radius:12px;">
+        <div style="font-size:12px;color:var(--text-dim)">🖥️ 覆盖算力节点</div>
+        <div id="datasetServerStat" style="font-size:24px;font-weight:700;color:var(--yellow);margin-top:4px">0 台</div>
+      </div>
+      <div style="padding:16px;background:var(--card-bg);border:1px solid var(--border);border-radius:12px;">
+        <div style="font-size:12px;color:var(--text-dim)">🗂️ RAG 备份索引记录</div>
+        <div id="backupCountStat" style="font-size:24px;font-weight:700;color:#c084fc;margin-top:4px">0 条</div>
+      </div>
+    </div>
+
+    <!-- Section 1: Pre-cached Datasets -->
+    <div style="margin:0 24px 12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border-bottom:1px solid var(--border);padding-bottom:12px">
+      <div>
+        <h2 style="font-size:18px;font-weight:600;display:flex;align-items:center;gap:6px">📁 算力节点预存数据集 (Affinity +100,000)</h2>
+      </div>
+      <input class="search-input" id="datasetSearchInput" placeholder="过滤数据集/路径/服务器..." oninput="renderDatasets()" style="min-width:240px">
+    </div>
+    <div class="grid" id="datasetGrid"></div>
+
+    <!-- Section 2: Backup Indexes & RAG Vector Search -->
+    <div style="margin:32px 24px 12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border-bottom:1px solid var(--border);padding-bottom:12px">
+      <div>
+        <h2 style="font-size:18px;font-weight:600;display:flex;align-items:center;gap:6px">🗂️ 云端备份索引库与 RAG 语义检索 (IP 生命周期绑定)</h2>
+        <p style="font-size:12px;color:var(--text-dim);margin-top:2px">当通过 <code>plan_server_backup</code> 备份时自动建库。支持输入自然语言或指标关键词进行 RAG 混合检索。</p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input class="search-input" id="ragSearchInput" placeholder="🔍 RAG 语义搜索 (如: loss 0.18, 7b权重, 评估集)..." oninput="onRagSearchInput()" style="min-width:280px">
+        <select id="backupTypeFilter" onchange="loadBackups()" style="padding:8px 12px;background:var(--card-bg);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:13px">
+          <option value="">全部备份类型</option>
+          <option value="google_drive">☁️ Google Drive</option>
+          <option value="peer_server">🔄 对端中转</option>
+          <option value="local_weights">📥 本地权重</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid" id="backupIndexGrid"></div>
   </div>
   <div id="page-proxies" class="page" style="display:none">
     <div class="header">
@@ -153,9 +346,12 @@ export const HTML = `<!DOCTYPE html>
   <div id="modalContainer"></div>
   <script>
     let servers = [];
+    let datasets = [];
+    let backups = [];
     let proxies = [];
     let logs = [];
     let currentPage = 'servers';
+    let ragSearchTimer = null;
 
     const API = {
       servers: () => fetch('/api/servers').then(r => r.json()),
@@ -165,13 +361,25 @@ export const HTML = `<!DOCTYPE html>
       deleteServer: (id) => fetch('/api/servers/'+id, { method:'DELETE' }).then(r => r.json()),
       enableServer: (id) => fetch('/api/servers/'+id+'/enable', { method:'POST' }).then(r => r.json()),
       disableServer: (id) => fetch('/api/servers/'+id+'/disable', { method:'POST' }).then(r => r.json()),
+      datasets: () => fetch('/api/servers/datasets/all').then(r => r.json()),
+      registerDataset: (serverId, data) => fetch('/api/servers/'+serverId+'/datasets', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) }).then(r => r.json()),
+      removeDataset: (serverId, name) => fetch('/api/servers/'+serverId+'/datasets/'+encodeURIComponent(name), { method:'DELETE' }).then(r => r.json()),
+      backups: (q, type) => {
+        let url = '/api/servers/backups/all?';
+        if (q) url += 'q=' + encodeURIComponent(q) + '&';
+        if (type) url += 'type=' + encodeURIComponent(type);
+        return fetch(url).then(r => r.json());
+      },
+      deleteBackup: (id) => fetch('/api/servers/backups/' + id, { method:'DELETE' }).then(r => r.json()),
       proxies: () => fetch('/api/proxies').then(r => r.json()),
       createProxy: (data) => fetch('/api/proxies', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) }).then(r => r.json()),
       deleteProxy: (id) => fetch('/api/proxies/'+id, { method:'DELETE' }).then(r => r.json()),
       logs: () => fetch('/api/usage').then(r => r.json()),
       recordUsage: (data) => fetch('/api/usage', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) }).then(r => r.json()),
-      claimServer: (id, agent, task) => fetch('/api/servers/'+id+'/claim', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({agent, task}) }).then(r => r.json()),
+      claimServer: (id, agent, task, duration_minutes, server_expires_at) => fetch('/api/servers/'+id+'/claim', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({agent, task, duration_minutes, server_expires_at}) }).then(r => r.json()),
+      setServerLease: (id, server_expires_at) => fetch('/api/servers/'+id+'/lease', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({server_expires_at}) }).then(r => r.json()),
       releaseServer: (id) => fetch('/api/servers/'+id+'/release', { method:'POST' }).then(r => r.json()),
+      planBackup: (server_id, session_name, summary, has_google_drive, remote_data_dir) => fetch('/mcp', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({jsonrpc:'2.0', id: Date.now(), method:'tools/call', params:{name:'plan_server_backup', arguments:{server_id, session_name, summary, has_google_drive, remote_data_dir}}}) }).then(r => r.json()),
     };
 
     function switchPage(page) {
@@ -181,6 +389,7 @@ export const HTML = `<!DOCTYPE html>
       document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
       document.getElementById('nav-'+page).classList.add('active');
       if (page === 'servers') loadServers();
+      else if (page === 'datasets') refreshDatasetsPage();
       else if (page === 'proxies') loadProxies();
       else if (page === 'logs') loadLogs();
     }
@@ -316,6 +525,24 @@ export const HTML = `<!DOCTYPE html>
       addInfoRow('CPU', s.cpu_cores?s.cpu_cores+'核':'N/A');
       addInfoRow('内存', s.ram_gb?s.ram_gb+'GB':'N/A');
       addInfoRow('Ping', s.status_ping_ms?s.status_ping_ms+'ms':'未探测');
+      
+      // Server physical lease display
+      let leaseBadge = '';
+      if (s.server_expires_at) {
+        const sRem = Math.round((new Date(s.server_expires_at).getTime() - Date.now()) / 60000);
+        if (sRem <= 0) {
+          leaseBadge = '<span style="display:inline-block;padding:2px 8px;border-radius:4px;background:rgba(239,68,68,0.15);color:var(--red);font-size:11px;font-weight:600;">🛑 物理已到期 (' + (-sRem) + '分前)</span>';
+        } else if (sRem <= 60) {
+          leaseBadge = '<span style="display:inline-block;padding:2px 8px;border-radius:4px;background:rgba(249,115,22,0.2);color:#f97316;font-size:11px;font-weight:600;">⚠️ 物理临期: 剩余 ' + sRem + ' 分钟 (即将关机)</span>';
+        } else {
+          const hText = sRem >= 120 ? (sRem / 60).toFixed(1) + ' 小时' : sRem + ' 分钟';
+          leaseBadge = '<span style="display:inline-block;padding:2px 8px;border-radius:4px;background:rgba(59,130,246,0.15);color:var(--blue);font-size:11px;font-weight:600;">🔋 物理租期剩余 ' + hText + '</span>';
+        }
+      } else {
+        leaseBadge = '<span style="display:inline-block;padding:2px 8px;border-radius:4px;background:rgba(100,116,139,0.15);color:var(--text-dim);font-size:11px;">♾️ 物理租期: 永久/长期</span>';
+      }
+      addInfoRow('物理租期', leaseBadge);
+
       if (s.os_hint) addInfoRow('系统', s.os_hint);
       if (s.ssh_banner) {
         var ver = s.ssh_banner.match(/SSH-[\d.]+-([^\s]+)/);
@@ -326,15 +553,30 @@ export const HTML = `<!DOCTYPE html>
       const isBusy = s.current_agent && s.current_task;
       if (isBusy) {
         const taskRow = document.createElement('div'); taskRow.className = 'info-row';
-        taskRow.style.cssText = 'border-top:1px solid var(--border);padding-top:8px;margin-top:4px;color:var(--yellow)';
-        const taskLabel = document.createElement('span'); taskLabel.textContent = '📋 任务';
-        const taskValue = document.createElement('span');
-        taskValue.textContent = s.current_agent+' → '+s.current_task;
+        taskRow.style.cssText = 'border-top:1px solid var(--border);padding-top:8px;margin-top:6px;flex-direction:column;align-items:flex-start;gap:4px;';
+        
+        let timerBadge = '';
+        if (s.task_expires_at) {
+          const rem = Math.round((new Date(s.task_expires_at).getTime() - Date.now())/60000);
+          if (rem <= 0) {
+            timerBadge = '<span style="display:inline-block;padding:2px 8px;border-radius:4px;background:rgba(239,68,68,0.15);color:var(--red);font-size:11px;font-weight:600;">⚠️ 任务倒计时已超时 (' + (-rem) + '分钟前到期)</span>';
+          } else {
+            timerBadge = '<span style="display:inline-block;padding:2px 8px;border-radius:4px;background:rgba(16,185,129,0.15);color:var(--green);font-size:11px;font-weight:600;">⏱️ 任务倒计时剩余 ' + rem + ' 分钟 (共 ' + (s.task_duration_minutes||rem) + '分)</span>';
+          }
+        } else {
+          timerBadge = '<span style="display:inline-block;padding:2px 8px;border-radius:4px;background:rgba(100,116,139,0.15);color:var(--text-dim);font-size:11px;">♾️ 不限时任务</span>';
+        }
+
+        let startInfo = '';
         if (s.task_started_at) {
           const elapsed = Math.floor((Date.now() - new Date(s.task_started_at).getTime())/60000);
-          taskValue.textContent += ' ('+elapsed+'分钟前)';
+          startInfo = ' <span style="font-size:11px;color:var(--text-dim)">(' + elapsed + '分钟前启动)</span>';
         }
-        taskRow.appendChild(taskLabel); taskRow.appendChild(taskValue);
+
+        taskRow.innerHTML = '<div style="display:flex;justify-content:space-between;width:100%;align-items:center;">' +
+          '<span style="color:var(--yellow);font-weight:600;font-size:12px;">📋 ' + escHtml(s.current_agent) + ' → ' + escHtml(s.current_task) + startInfo + '</span>' +
+          '</div>' +
+          '<div style="margin-top:2px;">' + timerBadge + '</div>';
         card.appendChild(taskRow);
       }
 
@@ -345,6 +587,14 @@ export const HTML = `<!DOCTYPE html>
         if (extraClass) btn.className = extraClass;
         btn.onclick = clickFn; actionsDiv.appendChild(btn);
       };
+      addActionBtn(isBusy ? '⏱️ 计时/任务' : '⏱️ 任务/计时', () => showTaskTimerModal(s.id));
+      if (isBusy) {
+        addActionBtn('🛑 释放', function() {
+          if (confirm('确定释放服务器 ' + s.name + ' 的占用？')) {
+            API.releaseServer(s.id).then(loadServers);
+          }
+        }, 'danger');
+      }
       addActionBtn('详情', () => showServerDetail(s.id));
       addActionBtn('编辑', () => showEditServer(s.id));
       addActionBtn('探测', () => probeServer(s.id));
@@ -357,6 +607,414 @@ export const HTML = `<!DOCTYPE html>
       card.appendChild(actionsDiv);
 
       return card;
+    }
+
+    async function deleteServerConfirm(id) {
+      const s = servers.find(x => x.id === id);
+      const name = s ? s.name : id;
+      const host = s ? s.host : '';
+      if (confirm('确定永久删除服务器 [' + name + ' (' + host + ')] 吗？\\n注意：该操作将同时自动清理该 IP 下的所有备份索引记录！')) {
+        try {
+          const res = await API.deleteServer(id);
+          if (res && res.success !== false) {
+            showToast('✔ 服务器已成功删除', 'success');
+            loadServers();
+          } else {
+            showToast('删除失败: ' + (res && res.error ? res.error : '未知错误'), 'error');
+          }
+        } catch (e) {
+          showToast('网络错误: ' + e.message, 'error');
+        }
+      }
+    }
+
+    async function deleteProxyConfirm(id) {
+      const p = proxies.find(x => x.id === id);
+      const name = p ? p.name : id;
+      if (confirm('确定删除代理节点 [' + name + '] 吗？')) {
+        try {
+          const res = await API.deleteProxy(id);
+          if (res && res.success !== false) {
+            showToast('✔ 代理节点已成功删除', 'success');
+            loadProxies();
+          } else {
+            showToast('删除失败: ' + (res && res.error ? res.error : '未知错误'), 'error');
+          }
+        } catch (e) {
+          showToast('网络错误: ' + e.message, 'error');
+        }
+      }
+    }
+
+    async function refreshDatasetsPage() {
+      await Promise.all([loadServers(), loadDatasets(), loadBackups()]);
+    }
+
+    function onRagSearchInput() {
+      if (ragSearchTimer) clearTimeout(ragSearchTimer);
+      ragSearchTimer = setTimeout(function() {
+        loadBackups();
+      }, 300);
+    }
+
+    async function loadBackups() {
+      try {
+        const qInput = document.getElementById('ragSearchInput');
+        const q = (qInput ? qInput.value : '').trim();
+        const typeSelect = document.getElementById('backupTypeFilter');
+        const type = (typeSelect ? typeSelect.value : '').trim();
+        backups = await API.backups(q, type);
+        if (!Array.isArray(backups)) backups = [];
+        renderBackups();
+      } catch (e) {
+        console.error('Failed to load backups', e);
+        backups = [];
+        renderBackups();
+      }
+    }
+
+    function renderBackups() {
+      const bEl = document.getElementById('backupCountStat');
+      if (bEl) bEl.textContent = backups.length + ' 条';
+
+      const container = document.getElementById('backupIndexGrid');
+      if (!container) return;
+      container.innerHTML = '';
+
+      if (backups.length === 0) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.style.cssText = 'grid-column:1/-1;padding:36px 24px;text-align:center;background:var(--card-bg);border:1px dashed var(--border);border-radius:16px;';
+        emptyDiv.innerHTML = '<div style="font-size:32px;margin-bottom:8px">🗂️</div>' +
+          '<div style="font-size:15px;font-weight:600;margin-bottom:4px">暂无匹配的备份索引记录</div>' +
+          '<div style="font-size:13px;color:var(--text-dim);max-width:520px;margin:0 auto;line-height:1.5">当执行 <code>plan_server_backup</code> 完成阶段性产物或权重备份时，系统将自动以源机 IP 为唯一锚点登记至此；当机器被删除时，关联索引将随之一同清理。</div>';
+        container.appendChild(emptyDiv);
+        return;
+      }
+
+      const typeMeta = {
+        google_drive: { icon: '☁️', label: 'Google Drive 全量', color: '#60a5fa', bg: 'rgba(96,165,250,0.15)' },
+        peer_server: { icon: '🔄', label: '对端中转存储', color: '#34d399', bg: 'rgba(52,211,153,0.15)' },
+        local_weights: { icon: '📥', label: '本地核心产物', color: '#fbbf24', bg: 'rgba(251,191,36,0.15)' },
+      };
+
+      backups.forEach(function(b) {
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        const tm = typeMeta[b.backup_type] || { icon: '📦', label: b.backup_type, color: 'var(--text)', bg: 'rgba(255,255,255,0.1)' };
+
+        // Title
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'title';
+        titleDiv.innerHTML = '<span>' + tm.icon + ' <b style="color:var(--text)">' + escHtml(b.summary) + '</b></span>' +
+          '<span style="font-size:12px;padding:3px 8px;border-radius:6px;background:' + tm.bg + ';color:' + tm.color + ';font-weight:600">' + tm.label + (b.score ? ' · 匹配 ' + b.score + '分' : '') + '</span>';
+        card.appendChild(titleDiv);
+
+        // Info rows
+        const addRow = function(label, valHtml) {
+          const row = document.createElement('div'); row.className = 'info-row';
+          const lbl = document.createElement('span'); lbl.textContent = label;
+          const val = document.createElement('span'); val.innerHTML = valHtml;
+          row.appendChild(lbl); row.appendChild(val);
+          card.appendChild(row);
+        };
+
+        addRow('源服务器 IP', '<code style="font-size:12px;background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px">🔗 ' + escHtml(b.server_host) + '</code>');
+        addRow('任务会话', '<b>' + escHtml(b.session_name) + '</b>');
+        addRow('存储路径', '<code style="font-size:12px;background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px;word-break:break-all">' + escHtml(b.remote_path) + '</code>');
+        if (b.peer_server_host) {
+          addRow('对端节点 IP', '<b>' + escHtml(b.peer_server_host) + '</b>');
+        }
+        if (b.purpose) addRow('数据用途', escHtml(b.purpose));
+        if (b.usage_status) addRow('使用状态', escHtml(b.usage_status));
+        if (b.relevance_reasons && b.relevance_reasons.length > 0) {
+          addRow('RAG 匹配', '<span style="color:#c084fc">' + escHtml(b.relevance_reasons.join(', ')) + '</span>');
+        }
+        if (b.created_at) {
+          const dt = new Date(b.created_at);
+          addRow('备份时间', dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
+        }
+
+        // Actions
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'actions';
+
+        if (b.peer_connect_cmd) {
+          const connBtn = document.createElement('button');
+          connBtn.textContent = '📋 复制连接指令';
+          connBtn.onclick = function() {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(b.peer_connect_cmd).then(function() {
+                showToast('✔ 对端 SSH 连接指令已复制', 'success');
+              });
+            } else {
+              prompt('复制连接指令:', b.peer_connect_cmd);
+            }
+          };
+          actionsDiv.appendChild(connBtn);
+        }
+
+        const copyPathBtn = document.createElement('button');
+        copyPathBtn.textContent = '📁 复制路径';
+        copyPathBtn.onclick = function() {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(b.remote_path).then(function() {
+              showToast('✔ 存储路径已复制', 'success');
+            });
+          } else {
+            prompt('复制路径:', b.remote_path);
+          }
+        };
+        actionsDiv.appendChild(copyPathBtn);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'danger';
+        delBtn.textContent = '🗑️ 删除索引';
+        delBtn.onclick = async function() {
+          if (confirm('确定从 RAG 库中删除此备份索引（' + b.summary + '）？')) {
+            try {
+              const res = await API.deleteBackup(b.id);
+              if (res.success) {
+                showToast('✔ 备份索引已删除', 'success');
+                loadBackups();
+              } else {
+                showToast('删除失败', 'error');
+              }
+            } catch (err) {
+              showToast('网络错误: ' + err.message, 'error');
+            }
+          }
+        };
+        actionsDiv.appendChild(delBtn);
+
+        card.appendChild(actionsDiv);
+        container.appendChild(card);
+      });
+    }
+
+    async function loadDatasets() {
+      try {
+        datasets = await API.datasets();
+        if (!Array.isArray(datasets)) datasets = [];
+        renderDatasets();
+      } catch (e) {
+        console.error('Failed to load datasets', e);
+        datasets = [];
+        renderDatasets();
+      }
+    }
+
+    function renderDatasets() {
+      const searchInput = document.getElementById('datasetSearchInput');
+      const search = (searchInput ? searchInput.value : '').toLowerCase();
+      const filtered = datasets.filter(function(d) {
+        return (d.name && d.name.toLowerCase().includes(search)) ||
+          (d.path && d.path.toLowerCase().includes(search)) ||
+          (d.server_name && d.server_name.toLowerCase().includes(search)) ||
+          (d.server_host && d.server_host.includes(search)) ||
+          (d.description && d.description.toLowerCase().includes(search));
+      });
+
+      // Update stats
+      const totalCount = filtered.length;
+      let totalSize = 0;
+      filtered.forEach(function(d) { totalSize += (d.size_gb || 0); });
+      const uniqueServers = new Set(filtered.map(function(d) { return d.server_id; })).size;
+
+      const cEl = document.getElementById('datasetCountStat');
+      if (cEl) cEl.textContent = totalCount + ' 个';
+      const sEl = document.getElementById('datasetSizeStat');
+      if (sEl) sEl.textContent = totalSize.toFixed(1) + ' GB';
+      const uEl = document.getElementById('datasetServerStat');
+      if (uEl) uEl.textContent = uniqueServers + ' 台';
+
+      const container = document.getElementById('datasetGrid');
+      if (!container) return;
+      container.innerHTML = '';
+
+      if (filtered.length === 0) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.style.cssText = 'grid-column:1/-1;padding:48px 24px;text-align:center;background:var(--card-bg);border:1px dashed var(--border);border-radius:16px;';
+        emptyDiv.innerHTML = '<div style="font-size:36px;margin-bottom:12px">📦</div>' +
+          '<div style="font-size:16px;font-weight:600;margin-bottom:6px">暂无已登记的数据集</div>' +
+          '<div style="font-size:13px;color:var(--text-dim);max-width:500px;margin:0 auto 16px;line-height:1.5">当 Agent 在算力机上完成数据下载或挂载后，调用 <code>register_dataset</code> 自动登记；或点击下方按钮手动登记，即可实现多任务 Dataset Affinity 亲和就近调度。</div>';
+        const addBtn = document.createElement('button');
+        addBtn.className = 'btn-primary';
+        addBtn.textContent = '+ 立即登记第一个数据集';
+        addBtn.onclick = showRegisterDatasetModal;
+        emptyDiv.appendChild(addBtn);
+        container.appendChild(emptyDiv);
+        return;
+      }
+
+      filtered.forEach(function(d) {
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        // Title
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'title';
+        titleDiv.innerHTML = '<span>📦 <b style="color:var(--text)">' + escHtml(d.name) + '</b></span>' +
+          '<span style="font-size:12px;padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.15);color:var(--primary);font-weight:600">' + (d.size_gb > 0 ? d.size_gb + ' GB' : '未标大小') + '</span>';
+        card.appendChild(titleDiv);
+
+        // Info rows
+        const addRow = function(label, valHtml) {
+          const row = document.createElement('div'); row.className = 'info-row';
+          const lbl = document.createElement('span'); lbl.textContent = label;
+          const val = document.createElement('span'); val.innerHTML = valHtml;
+          row.appendChild(lbl); row.appendChild(val);
+          card.appendChild(row);
+        };
+
+        const serverStatusBadge = d.status_online ? '<span style="color:var(--green)">🟢</span>' : '<span style="color:var(--red)">🔴</span>';
+        addRow('所在服务器', serverStatusBadge + ' <b>' + escHtml(d.server_name) + '</b> (' + escHtml(d.server_host) + ':' + d.server_port + ')');
+        addRow('远端路径', '<code style="font-size:12px;background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px;word-break:break-all">' + escHtml(d.path) + '</code>');
+        if (d.description) addRow('用途描述', escHtml(d.description));
+        if (d.added_at) {
+          const dt = new Date(d.added_at);
+          addRow('登记时间', dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
+        }
+
+        // Actions
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'actions';
+
+        const copyBtn = document.createElement('button');
+        copyBtn.textContent = '📋 复制亲和参数';
+        copyBtn.onclick = function() {
+          const snippet = 'preferred_datasets: ["' + d.name + '"]';
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(snippet).then(function() {
+              showToast('✔ 亲和参数已复制到剪贴板！可直接粘贴到 plan_task_allocation', 'success');
+            }).catch(function() {
+              prompt('请手动复制亲和参数:', snippet);
+            });
+          } else {
+            prompt('请手动复制亲和参数:', snippet);
+          }
+        };
+        actionsDiv.appendChild(copyBtn);
+
+        const copyPathBtn = document.createElement('button');
+        copyPathBtn.textContent = '📁 复制路径';
+        copyPathBtn.onclick = function() {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(d.path).then(function() {
+              showToast('✔ 远端路径已复制', 'success');
+            });
+          } else {
+            prompt('请手动复制路径:', d.path);
+          }
+        };
+        actionsDiv.appendChild(copyPathBtn);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'danger';
+        delBtn.textContent = '🗑️ 移除登记';
+        delBtn.onclick = async function() {
+          if (confirm('确定从服务器 [' + d.server_name + '] 移除数据集 [' + d.name + '] 的登记？')) {
+            try {
+              const res = await API.removeDataset(d.server_id, d.name);
+              if (res.success) {
+                showToast('✔ 数据集已成功移除登记', 'success');
+                loadDatasets();
+              } else {
+                showToast('移除失败: ' + (res.error || '未知错误'), 'error');
+              }
+            } catch (err) {
+              showToast('网络错误: ' + err.message, 'error');
+            }
+          }
+        };
+        actionsDiv.appendChild(delBtn);
+
+        card.appendChild(actionsDiv);
+        container.appendChild(card);
+      });
+    }
+
+    function showRegisterDatasetModal() {
+      if (!servers || servers.length === 0) {
+        showToast('请先添加至少一台服务器', 'error');
+        return;
+      }
+      const modalContent = document.createElement('div');
+      const h2 = document.createElement('h2');
+      h2.textContent = '📦 登记新数据集 (Dataset Affinity)';
+      modalContent.appendChild(h2);
+
+      const desc = document.createElement('p');
+      desc.style.cssText = 'color:var(--text-dim);font-size:13px;margin-bottom:16px;line-height:1.5;';
+      desc.textContent = '登记服务器上已存在或已下载完成的数据集。在 plan_task_allocation 多任务编排时，包含此数据集的任务将自动优先调度到该机器上。';
+      modalContent.appendChild(desc);
+
+      function addFormGroup(label, inputHtml) {
+        const g = document.createElement('div'); g.className = 'form-group';
+        const l = document.createElement('label'); l.textContent = label; g.appendChild(l);
+        const w = document.createElement('div'); w.innerHTML = inputHtml; g.appendChild(w.firstChild);
+        modalContent.appendChild(g);
+      }
+
+      // Server select
+      let sOptions = '';
+      servers.forEach(function(s) {
+        sOptions += '<option value="' + s.id + '">' + escHtml(s.name) + ' (' + escHtml(s.host) + (s.status_online ? ' · 在线' : ' · 离线') + ')</option>';
+      });
+      addFormGroup('目标服务器', '<select id="ds-server">' + sOptions + '</select>');
+      addFormGroup('数据集名称 (短名称)', '<input id="ds-name" type="text" placeholder="例如: openorca, math_dataset, qwen_base">');
+      addFormGroup('服务器绝对路径', '<input id="ds-path" type="text" placeholder="例如: /data/datasets/openorca 或 /root/models/qwen">');
+      addFormGroup('预估大小 (GB)', '<input id="ds-size" type="number" step="0.1" min="0" placeholder="例如: 25.5">');
+      addFormGroup('用途与描述', '<input id="ds-desc" type="text" placeholder="例如: 中英文指令微调混合数据集">');
+
+      const actionsDiv = document.createElement('div');
+      actionsDiv.className = 'modal-actions';
+      actionsDiv.style.marginTop = '24px';
+
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'btn btn-primary';
+      saveBtn.textContent = '🚀 确认登记';
+      saveBtn.onclick = async function() {
+        const sId = document.getElementById('ds-server').value;
+        const nameVal = document.getElementById('ds-name').value.trim();
+        const pathVal = document.getElementById('ds-path').value.trim();
+        const sizeVal = parseFloat(document.getElementById('ds-size').value) || 0;
+        const descVal = document.getElementById('ds-desc').value.trim();
+
+        if (!nameVal) { showToast('请填写数据集名称', 'error'); return; }
+        if (!pathVal) { showToast('请填写服务器绝对路径', 'error'); return; }
+
+        saveBtn.disabled = true; saveBtn.textContent = '登记中...';
+        try {
+          const res = await API.registerDataset(sId, {
+            name: nameVal,
+            path: pathVal,
+            size_gb: sizeVal,
+            description: descVal
+          });
+          if (res.success) {
+            showToast('✔ 成功登记数据集！', 'success');
+            closeModal();
+            loadDatasets();
+          } else {
+            showToast('登记失败: ' + (res.error || '未知错误'), 'error');
+            saveBtn.disabled = false; saveBtn.textContent = '确认登记';
+          }
+        } catch (e) {
+          showToast('网络错误: ' + e.message, 'error');
+          saveBtn.disabled = false; saveBtn.textContent = '确认登记';
+        }
+      };
+      actionsDiv.appendChild(saveBtn);
+
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'btn btn-secondary';
+      closeBtn.textContent = '取消';
+      closeBtn.onclick = closeModal;
+      actionsDiv.appendChild(closeBtn);
+
+      modalContent.appendChild(actionsDiv);
+      showModalWithElement(modalContent);
     }
 
     function renderProxies() {
@@ -629,7 +1287,7 @@ export const HTML = `<!DOCTYPE html>
         '  <div class="img-grid" id="img-grid"></div>' +
         '  <div id="ai-status" style="margin-top:8px"></div>' +
         '  <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">' +
-        '    <button class="btn-primary" onclick="document.getElementById(\\'img-input\\').click()">📷 选择截图</button>' +
+        '    <button class="btn-primary" onclick="pickServerImage()">📷 选择截图</button>' +
         '    <button class="btn-primary" onclick="runAiExtract()">🤖 AI 提取</button>' +
         '  </div>' +
         '  <input type="file" accept="image/*" multiple style="display:none" id="img-input" onchange="handleImageFiles(this)">' +
@@ -832,6 +1490,7 @@ export const HTML = `<!DOCTYPE html>
       }
     }
 
+    function pickServerImage() { var el = document.getElementById('img-input'); if(el) el.click(); }
     function pickProxyImage() { var el = document.getElementById('proxy-img-input'); if(el) el.click(); }
 
     function addProxyImage(blob) {
@@ -941,22 +1600,286 @@ export const HTML = `<!DOCTYPE html>
       };
       await API.createProxy(data); closeModal(); loadProxies();
     }
-    async function deleteServerConfirm(id) { if(confirm('确定删除？')){await API.deleteServer(id);loadServers();} }
-    async function deleteProxyConfirm(id) { if(confirm('确定删除？')){await API.deleteProxy(id);loadProxies();} }
+    function showTaskTimerModal(id) {
+      const s = servers.find(x => x.id === id); if (!s) return;
+      const modalContent = document.createElement('div');
+      const h2 = document.createElement('h2');
+      h2.textContent = '⏱️ 任务倒计时与物理租期管理';
+      modalContent.appendChild(h2);
+
+      const desc = document.createElement('p');
+      desc.style.cssText = 'color:var(--text-dim);font-size:13px;margin-bottom:16px;line-height:1.5;';
+      desc.textContent = '管理服务器 [' + s.name + ' (' + s.host + ')] 的【任务执行倒计时】与【服务器物理存活寿命】。两项相互独立，共同驱动智能备份决策。';
+      modalContent.appendChild(desc);
+
+      // Status summary box
+      const curDiv = document.createElement('div');
+      curDiv.style.cssText = 'padding:12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;margin-bottom:16px;font-size:13px;line-height:1.6;';
+      
+      let sLeaseInfo = '🔋 物理租期：<b>永久 / 长期物理机</b>';
+      let sRemMin = null;
+      if (s.server_expires_at) {
+        sRemMin = Math.round((new Date(s.server_expires_at).getTime() - Date.now()) / 60000);
+        if (sRemMin <= 0) {
+          sLeaseInfo = '🔋 物理租期：<span style="color:var(--red);font-weight:bold;">🛑 物理已过期 (' + (-sRemMin) + ' 分钟前)</span>';
+        } else if (sRemMin <= 60) {
+          sLeaseInfo = '🔋 物理租期：<span style="color:#f97316;font-weight:bold;">⚠️ 物理临期：剩余 ' + sRemMin + ' 分钟 (即将关机)</span>';
+        } else {
+          sLeaseInfo = '🔋 物理租期：<span style="color:var(--blue);font-weight:bold;">剩余 ' + (sRemMin >= 120 ? (sRemMin/60).toFixed(1) + ' 小时' : sRemMin + ' 分钟') + '</span>';
+        }
+      }
+
+      const isBusy = s.current_agent && s.current_task;
+      let tTaskInfo = isBusy ? ('📋 当前任务：由 <b>' + escHtml(s.current_agent) + '</b> 占用 (' + escHtml(s.current_task) + ')') : '🟢 当前任务状态：<b>空闲 (未占用)</b>';
+      if (isBusy && s.task_expires_at) {
+        const tRem = Math.round((new Date(s.task_expires_at).getTime() - Date.now()) / 60000);
+        if (tRem <= 0) {
+          tTaskInfo += '<br>⏱️ 任务倒计时：<span style="color:var(--red);font-weight:bold;">⚠️ 任务已超时 (' + (-tRem) + ' 分钟前到期)</span>';
+        } else {
+          tTaskInfo += '<br>⏱️ 任务倒计时：<span style="color:var(--green);font-weight:bold;">剩余 ' + tRem + ' 分钟 (共 ' + (s.task_duration_minutes||tRem) + '分)</span>';
+        }
+      }
+
+      curDiv.innerHTML = sLeaseInfo + '<br>' + tTaskInfo;
+      modalContent.appendChild(curDiv);
+
+      function addFormGroup(label, inputHtml) {
+        const g = document.createElement('div'); g.className = 'form-group';
+        const l = document.createElement('label'); l.textContent = label; g.appendChild(l);
+        const w = document.createElement('div'); w.innerHTML = inputHtml; g.appendChild(w.firstChild);
+        modalContent.appendChild(g);
+      }
+
+      // Section 1: Server physical lease
+      const sec1 = document.createElement('div');
+      sec1.innerHTML = '<div style="margin:16px 0 8px 0;padding-bottom:4px;border-bottom:1px solid var(--border);font-weight:bold;color:var(--blue);">1. 🔋 服务器物理寿命/租期 (Server Physical Lease)</div>';
+      modalContent.appendChild(sec1);
+
+      const leaseGroup = document.createElement('div'); leaseGroup.className = 'form-group';
+      leaseGroup.innerHTML = '<label>调整物理剩余租期 (云厂商按小时租用时到期时间)</label>' +
+        '<select id="tt-server-lease">' +
+        '<option value="keep">保持现有 (' + (s.server_expires_at ? '到期时间: ' + s.server_expires_at.slice(0, 16).replace('T', ' ') : '永久/未限时') + ')</option>' +
+        '<option value="unlimited">设为永久 / 不限时物理机</option>' +
+        '<option value="1h">设为 1 小时后物理关机</option>' +
+        '<option value="2h">设为 2 小时后物理关机</option>' +
+        '<option value="4h">设为 4 小时后物理关机</option>' +
+        '<option value="8h">设为 8 小时后物理关机</option>' +
+        '<option value="24h">设为 24 小时后物理关机</option>' +
+        '<option value="custom">指定精确截止日期时间...</option>' +
+        '</select>';
+      modalContent.appendChild(leaseGroup);
+
+      const customLeaseWrap = document.createElement('div');
+      customLeaseWrap.id = 'tt-custom-lease-wrap';
+      customLeaseWrap.style.display = 'none';
+      customLeaseWrap.className = 'form-group';
+      customLeaseWrap.innerHTML = '<label>指定物理截止时间 (本地时间)</label><input id="tt-custom-lease-dt" type="datetime-local" value="' + (s.server_expires_at ? s.server_expires_at.slice(0, 16) : '') + '">';
+      modalContent.appendChild(customLeaseWrap);
+
+      setTimeout(function() {
+        const leaseSel = document.getElementById('tt-server-lease');
+        if (leaseSel) {
+          leaseSel.onchange = function() {
+            customLeaseWrap.style.display = this.value === 'custom' ? 'block' : 'none';
+          };
+        }
+      }, 50);
+
+      // Section 2: Task countdown
+      const sec2 = document.createElement('div');
+      sec2.innerHTML = '<div style="margin:16px 0 8px 0;padding-bottom:4px;border-bottom:1px solid var(--border);font-weight:bold;color:var(--yellow);">2. ⏱️ 本轮实验任务与倒计时 (Task & Duration)</div>';
+      modalContent.appendChild(sec2);
+
+      addFormGroup('任务描述 (Task Name / Summary)', '<input id="tt-task" type="text" placeholder="例如: train-qwen-7b-lora, eval-benchmark" value="' + escHtml(s.current_task || '') + '">');
+      addFormGroup('执行 Agent 标识', '<input id="tt-agent" type="text" placeholder="例如: web-user, claude-code, antigravity, codex" value="' + escHtml(s.current_agent || 'web-user') + '">');
+
+      const durGroup = document.createElement('div');
+      durGroup.className = 'form-group';
+      durGroup.innerHTML = '<label>任务倒计时时长 (Task Countdown Duration)</label>' +
+        '<select id="tt-duration">' +
+        '<option value="0">不计时 / 不限时 (0 分钟)</option>' +
+        '<option value="15">15 分钟 (快速实验)</option>' +
+        '<option value="30">30 分钟 (短期调试)</option>' +
+        '<option value="60">1 小时 (60 分钟)</option>' +
+        '<option value="120">2 小时 (120 分钟)</option>' +
+        '<option value="240">4 小时 (240 分钟)</option>' +
+        '<option value="480">8 小时 (480 分钟 / 隔夜任务)</option>' +
+        '<option value="custom">自定义任务分钟数...</option>' +
+        '</select>';
+      modalContent.appendChild(durGroup);
+
+      const isCustomInitial = s.task_duration_minutes && ![15,30,60,120,240,480].includes(s.task_duration_minutes);
+      const customWrap = document.createElement('div');
+      customWrap.id = 'tt-custom-wrap';
+      customWrap.style.display = isCustomInitial ? 'block' : 'none';
+      customWrap.className = 'form-group';
+      customWrap.innerHTML = '<label>自定义任务分钟数 (正整数)</label><input id="tt-custom-minutes" type="number" min="1" max="10080" placeholder="例如: 90" value="' + (s.task_duration_minutes || 60) + '">';
+      modalContent.appendChild(customWrap);
+
+      setTimeout(function() {
+        const durSel = document.getElementById('tt-duration');
+        if (durSel) {
+          if (isCustomInitial) {
+            durSel.value = 'custom';
+          } else if (s.task_duration_minutes && [15,30,60,120,240,480].includes(s.task_duration_minutes)) {
+            durSel.value = String(s.task_duration_minutes);
+          }
+          durSel.onchange = function() {
+            customWrap.style.display = this.value === 'custom' ? 'block' : 'none';
+          };
+        }
+      }, 50);
+
+      // Smart hint box
+      const hintBox = document.createElement('div');
+      hintBox.style.cssText = 'padding:10px 12px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);border-radius:6px;font-size:12px;color:var(--text);margin-top:14px;line-height:1.5;';
+      hintBox.innerHTML = '<b>💡 智能双模备份决策规则：</b><br>' +
+        '• <b>物理剩余 > 1 小时 (充裕)</b>：任务结束仅备份单轮实验产出（权重/日志），坚决不备份庞大数据集，保留在机供后续任务享受 Dataset Affinity 亲和调度；<br>' +
+        '• <b>物理剩余 &le; 1 小时 (临期关机)</b>：任务结束触发全量资产疏散备份（Google Drive &rarr; 对端服务器转移 &rarr; 本地核心私有权重）。';
+      modalContent.appendChild(hintBox);
+
+      const actionsDiv = document.createElement('div'); actionsDiv.className = 'modal-actions'; actionsDiv.style.marginTop = '20px';
+      
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'btn btn-primary';
+      saveBtn.textContent = '💾 保存设置';
+      saveBtn.onclick = async function() {
+        const taskVal = document.getElementById('tt-task').value.trim();
+        const agentVal = document.getElementById('tt-agent').value.trim();
+        
+        const durSel = document.getElementById('tt-duration').value;
+        let durationMinutes = 0;
+        if (durSel === 'custom') {
+          durationMinutes = parseInt(document.getElementById('tt-custom-minutes').value) || 0;
+        } else {
+          durationMinutes = parseInt(durSel) || 0;
+        }
+
+        // Physical lease computation
+        const leaseSel = document.getElementById('tt-server-lease').value;
+        let newServerExpiresAt = undefined;
+        if (leaseSel === 'unlimited') {
+          newServerExpiresAt = null;
+        } else if (leaseSel === '1h') {
+          newServerExpiresAt = new Date(Date.now() + 3600000).toISOString();
+        } else if (leaseSel === '2h') {
+          newServerExpiresAt = new Date(Date.now() + 7200000).toISOString();
+        } else if (leaseSel === '4h') {
+          newServerExpiresAt = new Date(Date.now() + 14400000).toISOString();
+        } else if (leaseSel === '8h') {
+          newServerExpiresAt = new Date(Date.now() + 28800000).toISOString();
+        } else if (leaseSel === '24h') {
+          newServerExpiresAt = new Date(Date.now() + 86400000).toISOString();
+        } else if (leaseSel === 'custom') {
+          const dtVal = document.getElementById('tt-custom-lease-dt').value;
+          if (dtVal) {
+            newServerExpiresAt = new Date(dtVal).toISOString();
+          }
+        }
+
+        saveBtn.disabled = true; saveBtn.textContent = '保存中...';
+        try {
+          if (taskVal || agentVal || durationMinutes > 0) {
+            await API.claimServer(s.id, agentVal || 'web-user', taskVal || 'manual-task', durationMinutes, newServerExpiresAt);
+          } else if (newServerExpiresAt !== undefined) {
+            await API.setServerLease(s.id, newServerExpiresAt);
+          }
+          showToast('✔ 成功保存物理租期与任务倒计时！', 'success');
+          closeModal();
+          loadServers();
+        } catch (e) {
+          showToast('网络错误: ' + e.message, 'error');
+          saveBtn.disabled = false; saveBtn.textContent = '保存';
+        }
+      };
+      actionsDiv.appendChild(saveBtn);
+
+      if (isBusy) {
+        const relBtn = document.createElement('button');
+        relBtn.className = 'btn btn-danger';
+        relBtn.textContent = '🛑 释放任务占用';
+        relBtn.onclick = async function() {
+          if (confirm('确定释放服务器 ' + s.name + ' 的当前任务占用？')) {
+            await API.releaseServer(s.id);
+            showToast('✔ 任务已释放为闲置状态', 'success');
+            closeModal();
+            loadServers();
+          }
+        };
+        actionsDiv.appendChild(relBtn);
+      }
+
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'btn btn-secondary';
+      closeBtn.textContent = '取消';
+      closeBtn.onclick = closeModal;
+      actionsDiv.appendChild(closeBtn);
+
+      modalContent.appendChild(actionsDiv);
+      showModalWithElement(modalContent);
+    }
+
     function showServerDetail(id) {
       const s = servers.find(x=>x.id===id); if(!s) return;
       const modalContent = document.createElement('div');
-      const h2 = document.createElement('h2'); h2.textContent = s.name; modalContent.appendChild(h2);
+      const h2 = document.createElement('h2'); h2.textContent = '🖥️ ' + s.name; modalContent.appendChild(h2);
       const addRow = (label, value) => {
         const row = document.createElement('div'); row.className = 'info-row';
         const lbl = document.createElement('span'); lbl.textContent = label;
-        const val = document.createElement('span'); val.textContent = value;
+        const val = document.createElement('span'); val.innerHTML = value;
         row.appendChild(lbl); row.appendChild(val); modalContent.appendChild(row);
       };
-      addRow('地址', s.host+':'+s.port);
-      addRow('状态', s.status_online?'🟢在线':'🔴离线');
+      addRow('地址', escHtml(s.host)+':'+s.port);
+      addRow('状态', s.status_online?'<span style="color:var(--green)">🟢 在线</span>':'<span style="color:var(--red)">🔴 离线</span>');
+      addRow('GPU 规格', s.gpu_model ? (s.gpu_count+'x '+s.gpu_model+' ('+s.gpu_memory_gb+'GB)') : '无独显/CPU');
+      addRow('内存 / 磁盘', (s.ram_gb?s.ram_gb+'GB':'N/A') + ' / ' + (s.disk_gb?s.disk_gb+'GB':'N/A'));
+      
+      // Physical lease
+      let sRemMin = null;
+      if (s.server_expires_at) {
+        sRemMin = Math.round((new Date(s.server_expires_at).getTime() - Date.now()) / 60000);
+        if (sRemMin <= 0) {
+          addRow('物理租期', '<span style="color:var(--red);font-weight:bold;">🛑 物理已过期 (' + (-sRemMin) + ' 分钟前)</span>');
+        } else if (sRemMin <= 60) {
+          addRow('物理租期', '<span style="color:#f97316;font-weight:bold;">⚠️ 物理临期: 剩余 ' + sRemMin + ' 分钟 (即将关机)</span>');
+        } else {
+          addRow('物理租期', '<span style="color:var(--blue);font-weight:bold;">🔋 剩余 ' + (sRemMin >= 120 ? (sRemMin/60).toFixed(1)+' 小时' : sRemMin+' 分钟') + ' (' + s.server_expires_at.slice(0,16).replace('T',' ') + ')</span>');
+        }
+      } else {
+        addRow('物理租期', '<span style="color:var(--text-dim)">♾️ 永久 / 长期物理机</span>');
+      }
+
+      // Backup strategy prediction
+      const stratHtml = (sRemMin !== null && sRemMin <= 60)
+        ? '<span style="color:#f97316;font-weight:600;">⚠️ 全量资产疏散备份 (物理临期 &le; 1小时, 数据集将随之转移/备份)</span>'
+        : '<span style="color:var(--green);font-weight:600;">💡 轻量实验产出备份 (物理寿命充裕 > 1小时, 坚决不备份庞大数据集, 维持本地亲和优势)</span>';
+      addRow('备份决策模式', stratHtml);
+
+      if (s.current_task && s.current_agent) {
+        addRow('当前任务占用', '<b>' + escHtml(s.current_agent) + '</b> → ' + escHtml(s.current_task));
+        if (s.task_expires_at) {
+          const rem = Math.round((new Date(s.task_expires_at).getTime() - Date.now()) / 60000);
+          if (rem <= 0) {
+            addRow('任务倒计时', '<span style="color:var(--red);font-weight:bold;">⚠️ 任务已超时 (' + (-rem) + '分钟前到期)</span>');
+          } else {
+            addRow('任务倒计时', '<span style="color:var(--green);font-weight:bold;">⏱️ 剩余 ' + rem + ' 分钟 (共 ' + (s.task_duration_minutes||rem) + '分)</span>');
+          }
+        } else {
+          addRow('任务倒计时', '<span style="color:var(--text-dim)">♾️ 不限时任务</span>');
+        }
+      } else {
+        addRow('当前任务占用', '<span style="color:var(--green)">🟢 空闲 (可立即分配)</span>');
+      }
+
       const actionsDiv = document.createElement('div'); actionsDiv.className = 'modal-actions';
+      const timerBtn = document.createElement('button');
+      timerBtn.className = 'btn btn-primary';
+      timerBtn.textContent = '⏱️ 设置任务/计时';
+      timerBtn.onclick = function() { closeModal(); showTaskTimerModal(s.id); };
+      actionsDiv.appendChild(timerBtn);
+
       const closeBtn = document.createElement('button'); closeBtn.textContent = '关闭';
+      closeBtn.className = 'btn btn-secondary';
       closeBtn.onclick = closeModal; actionsDiv.appendChild(closeBtn);
       modalContent.appendChild(actionsDiv);
       showModalWithElement(modalContent);
@@ -1024,6 +1947,9 @@ export const HTML = `<!DOCTYPE html>
         addInput('内存(GB)', 'edit-ram', 'number', s.capabilities?.ram_gb||s.ram_gb||'');
         addInput('磁盘(GB)', 'edit-disk', 'number', s.capabilities?.disk_gb||s.disk_gb||'');
         addInput('厂商URL', 'edit-vendor-url', 'text', s.vendor_url||'');
+        
+        // Physical lease expiration
+        addInput('物理租期截止时间 (可选, 留空表示永久)', 'edit-server-expires-at', 'datetime-local', s.server_expires_at ? s.server_expires_at.slice(0, 16) : '');
 
         // Notes field
         var notesGroup = document.createElement('div'); notesGroup.className = 'form-group';
@@ -1061,6 +1987,7 @@ export const HTML = `<!DOCTYPE html>
       });
     }
     async function saveEditServer(id) {
+      var expiresAtVal = document.getElementById('edit-server-expires-at') ? document.getElementById('edit-server-expires-at').value : '';
       var updates = {
         name: document.getElementById('edit-name').value,
         host: document.getElementById('edit-host').value,
@@ -1075,6 +2002,7 @@ export const HTML = `<!DOCTYPE html>
         ram_gb: document.getElementById('edit-ram').value ? parseInt(document.getElementById('edit-ram').value) : null,
         disk_gb: document.getElementById('edit-disk').value ? parseInt(document.getElementById('edit-disk').value) : null,
         vendor_url: document.getElementById('edit-vendor-url').value||null,
+        server_expires_at: expiresAtVal ? new Date(expiresAtVal).toISOString() : null,
         notes: document.getElementById('edit-notes') ? document.getElementById('edit-notes').value||null : null,
         connection_type: document.getElementById('edit-connection-type') ? document.getElementById('edit-connection-type').value : 'standard',
         v2ray_available: document.getElementById('edit-v2ray').checked ? 1 : 0,

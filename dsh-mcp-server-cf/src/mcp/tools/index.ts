@@ -23,12 +23,20 @@ import { refreshLoadTool } from './refresh_load';
 import { planTaskAllocationTool } from './plan_task_allocation';
 import { planDiskShareTool } from './plan_disk_share';
 import { planNetworkRelayTool } from './plan_network_relay';
+import { registerDatasetTool } from './register_dataset';
+import { removeDatasetTool } from './remove_dataset';
+import { claimServerTool } from './claim_server';
+import { releaseServerTool } from './release_server';
+import { planServerBackupTool } from './plan_server_backup';
+import { queryBackupIndexTool } from './query_backup_index';
 
 export const toolRegistry: McpTool[] = [
   // The one-shot "get servers + how to connect" tool — the primary entry point
   getServersTool,
 
-  // Server management
+  // Server management & lifecycle
+  claimServerTool,
+  releaseServerTool,
   upsertServerTool,
   updateServerTool,
   removeServerTool,
@@ -39,11 +47,17 @@ export const toolRegistry: McpTool[] = [
   addProxyTool,
   removeProxyTool,
 
-  // Multi-server orchestration
+  // Multi-server orchestration & backups
   refreshLoadTool,
   planTaskAllocationTool,
   planDiskShareTool,
   planNetworkRelayTool,
+  planServerBackupTool,
+  queryBackupIndexTool,
+
+  // Dataset Management
+  registerDatasetTool,
+  removeDatasetTool,
 ];
 
 export function getTool(name: string): McpTool | undefined {

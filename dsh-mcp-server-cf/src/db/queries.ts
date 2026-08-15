@@ -1,4 +1,4 @@
-import type { DBServer, DBProxy, DBUsageLog, DBReachability, DBServerNote } from './schema';
+import type { DBServer, DBProxy, DBUsageLog, DBReachability, DBServerNote, DBBackupIndex } from './schema';
 import { v4 as uuid } from 'uuid';
 
 // ===== Server Queries =====
@@ -33,9 +33,27 @@ export async function getServerByHost(db: D1Database, host: string): Promise<DBS
   return result ?? null;
 }
 
+// Dedup key for upsert is the host (IP/domain).
+// If a server with this host exists, update it. If not, insert it.
+export async function upsertServer(
+  db: D1Database,
+  data: Omit<DBServer, 'id' | 'created_at' | 'updated_at' | 'status_online' | 'status_last_check' | 'status_ping_ms' | 'status_error' | 'current_task' | 'current_agent' | 'task_started_at' | 'task_duration_minutes' | 'task_expires_at' | 'server_expires_at' | 'enabled' | 'ssh_banner' | 'os_hint' | 'gpu_util_pct' | 'gpu_mem_free_gb' | 'ram_free_gb' | 'disk_free_gb' | 'running_tasks' | 'load_updated_at' | 'gpu_sharing_mode' | 'python_version' | 'torch_version' | 'cuda_version' | 'top_cpu_tasks' | 'datasets' | 'connection_type'> & { connection_type?: 'standard' | 'cloudflare_tunnel'; server_expires_at?: string | null }
+): Promise<{ id: string; created: boolean }> {
+  const existing = await getServerByHost(db, data.host);
+  if (existing) {
+    await updateServer(db, existing.id, {
+      ...data,
+      connection_type: data.connection_type ?? existing.connection_type ?? 'standard',
+    });
+    return { id: existing.id, created: false };
+  }
+  const id = await createServer(db, data);
+  return { id, created: true };
+}
+
 export async function createServer(
   db: D1Database,
-  data: Omit<DBServer, 'id' | 'created_at' | 'updated_at' | 'status_online' | 'status_last_check' | 'status_ping_ms' | 'status_error' | 'current_task' | 'current_agent' | 'task_started_at' | 'enabled' | 'ssh_banner' | 'os_hint' | 'gpu_util_pct' | 'gpu_mem_free_gb' | 'ram_free_gb' | 'disk_free_gb' | 'running_tasks' | 'load_updated_at' | 'gpu_sharing_mode' | 'python_version' | 'torch_version' | 'cuda_version' | 'top_cpu_tasks' | 'connection_type'> & { connection_type?: 'standard' | 'cloudflare_tunnel' }
+  data: Omit<DBServer, 'id' | 'created_at' | 'updated_at' | 'status_online' | 'status_last_check' | 'status_ping_ms' | 'status_error' | 'current_task' | 'current_agent' | 'task_started_at' | 'task_duration_minutes' | 'task_expires_at' | 'server_expires_at' | 'enabled' | 'ssh_banner' | 'os_hint' | 'gpu_util_pct' | 'gpu_mem_free_gb' | 'ram_free_gb' | 'disk_free_gb' | 'running_tasks' | 'load_updated_at' | 'gpu_sharing_mode' | 'python_version' | 'torch_version' | 'cuda_version' | 'top_cpu_tasks' | 'datasets' | 'connection_type'> & { connection_type?: 'standard' | 'cloudflare_tunnel'; server_expires_at?: string | null }
 ): Promise<string> {
   const id = uuid();
   const now = new Date().toISOString();
@@ -78,6 +96,11 @@ export async function updateServer(
 }
 
 export async function deleteServer(db: D1Database, id: string): Promise<boolean> {
+  const server = await getServerById(db, id);
+  if (server) {
+    // 以 IP 地址为唯一计量存不存在：如果索引对应的 IP 的服务器被删除，那索引一同消失
+    await deleteBackupIndexesByHost(db, server.host);
+  }
   const result = await db.prepare('DELETE FROM servers WHERE id = ?').bind(id).run();
   return result.success;
 }
@@ -252,13 +275,19 @@ export async function getUsageLogs(
 export async function updateServerTask(
   db: D1Database,
   serverId: string,
-  task: { agent: string; task: string }
-): Promise<void> {
-  const now = new Date().toISOString();
+  task: { agent: string; task: string; duration_minutes?: number }
+): Promise<{ started_at: string; expires_at: string | null }> {
+  const now = new Date();
+  const startedAt = now.toISOString();
+  let expiresAt: string | null = null;
+  if (task.duration_minutes && task.duration_minutes > 0) {
+    expiresAt = new Date(now.getTime() + task.duration_minutes * 60000).toISOString();
+  }
   await db.prepare(`
-    UPDATE servers SET current_task = ?, current_agent = ?, task_started_at = ?, updated_at = ?
+    UPDATE servers SET current_task = ?, current_agent = ?, task_started_at = ?, task_duration_minutes = ?, task_expires_at = ?, updated_at = ?
     WHERE id = ?
-  `).bind(task.task, task.agent, now, now, serverId).run();
+  `).bind(task.task, task.agent, startedAt, task.duration_minutes ?? null, expiresAt, startedAt, serverId).run();
+  return { started_at: startedAt, expires_at: expiresAt };
 }
 
 export async function releaseServerTask(
@@ -267,7 +296,7 @@ export async function releaseServerTask(
 ): Promise<void> {
   const now = new Date().toISOString();
   await db.prepare(`
-    UPDATE servers SET current_task = NULL, current_agent = NULL, task_started_at = NULL, updated_at = ?
+    UPDATE servers SET current_task = NULL, current_agent = NULL, task_started_at = NULL, task_duration_minutes = NULL, task_expires_at = NULL, updated_at = ?
     WHERE id = ?
   `).bind(now, serverId).run();
 }
@@ -330,3 +359,203 @@ export async function upsertServerNote(
       updated_at = excluded.updated_at
   `).bind(serverId, entry.topic, entry.content, entry.updated_by ?? null, now).run();
 }
+
+// ===== Backup Indexes & RAG Queries =====
+
+export async function upsertBackupIndex(
+  db: D1Database,
+  data: {
+    server_host: string;
+    server_id?: string | null;
+    folder_name: string;
+    session_name: string;
+    summary: string;
+    backup_type: 'google_drive' | 'peer_server' | 'local_weights';
+    purpose?: string | null;
+    usage_status?: string | null;
+    remote_path: string;
+    peer_server_host?: string | null;
+    peer_connect_cmd?: string | null;
+    metadata_json: string;
+    search_text?: string;
+  }
+): Promise<string> {
+  const now = new Date().toISOString();
+  const existing = await db.prepare(
+    'SELECT id FROM backup_indexes WHERE server_host = ? AND folder_name = ?'
+  ).bind(data.server_host, data.folder_name).first<{ id: string }>();
+
+  const id = existing?.id || uuid();
+  const combinedSearchText = data.search_text || [
+    data.server_host,
+    data.session_name,
+    data.summary,
+    data.backup_type,
+    data.purpose || '',
+    data.usage_status || '',
+    data.remote_path,
+    data.peer_server_host || '',
+    data.folder_name,
+  ].join(' ').toLowerCase();
+
+  if (existing) {
+    await db.prepare(`
+      UPDATE backup_indexes SET
+        server_id = ?,
+        session_name = ?,
+        summary = ?,
+        backup_type = ?,
+        purpose = ?,
+        usage_status = ?,
+        remote_path = ?,
+        peer_server_host = ?,
+        peer_connect_cmd = ?,
+        metadata_json = ?,
+        search_text = ?,
+        updated_at = ?
+      WHERE id = ?
+    `).bind(
+      data.server_id ?? null,
+      data.session_name,
+      data.summary,
+      data.backup_type,
+      data.purpose ?? null,
+      data.usage_status ?? null,
+      data.remote_path,
+      data.peer_server_host ?? null,
+      data.peer_connect_cmd ?? null,
+      data.metadata_json,
+      combinedSearchText,
+      now,
+      id
+    ).run();
+  } else {
+    await db.prepare(`
+      INSERT INTO backup_indexes (
+        id, server_host, server_id, folder_name, session_name, summary,
+        backup_type, purpose, usage_status, remote_path, peer_server_host,
+        peer_connect_cmd, metadata_json, search_text, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      id,
+      data.server_host,
+      data.server_id ?? null,
+      data.folder_name,
+      data.session_name,
+      data.summary,
+      data.backup_type,
+      data.purpose ?? null,
+      data.usage_status ?? null,
+      data.remote_path,
+      data.peer_server_host ?? null,
+      data.peer_connect_cmd ?? null,
+      data.metadata_json,
+      combinedSearchText,
+      now,
+      now
+    ).run();
+  }
+  return id;
+}
+
+export async function listBackupIndexes(
+  db: D1Database,
+  filter?: { server_host?: string; backup_type?: string }
+): Promise<DBBackupIndex[]> {
+  let query = 'SELECT * FROM backup_indexes';
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+
+  if (filter?.server_host) {
+    conditions.push('server_host = ?');
+    params.push(filter.server_host);
+  }
+  if (filter?.backup_type) {
+    conditions.push('backup_type = ?');
+    params.push(filter.backup_type);
+  }
+
+  if (conditions.length > 0) {
+    query += ' WHERE ' + conditions.join(' AND ');
+  }
+  query += ' ORDER BY created_at DESC';
+
+  const result = await db.prepare(query).bind(...params).all<DBBackupIndex>();
+  return result.results;
+}
+
+export async function deleteBackupIndexesByHost(db: D1Database, host: string): Promise<number> {
+  const result = await db.prepare('DELETE FROM backup_indexes WHERE server_host = ?').bind(host).run();
+  return result.meta.changes ?? 0;
+}
+
+export async function deleteBackupIndexById(db: D1Database, id: string): Promise<boolean> {
+  const result = await db.prepare('DELETE FROM backup_indexes WHERE id = ?').bind(id).run();
+  return result.success;
+}
+
+export async function searchBackupIndexesRAG(
+  db: D1Database,
+  queryText: string,
+  limit = 5
+): Promise<Array<DBBackupIndex & { score: number; relevance_reasons: string[] }>> {
+  const all = await listBackupIndexes(db);
+  if (all.length === 0) return [];
+
+  const rawTokens = queryText
+    .toLowerCase()
+    .replace(/[^\w\u4e00-\u9fa5]/g, ' ')
+    .split(/\s+/)
+    .filter(t => t.length > 0);
+
+  if (rawTokens.length === 0) {
+    return all.slice(0, limit).map(item => ({
+      ...item,
+      score: 1.0,
+      relevance_reasons: ['全量默认展示'],
+    }));
+  }
+
+  const scored = all.map(item => {
+    let score = 0;
+    const reasons: string[] = [];
+    const target = item.search_text.toLowerCase();
+
+    for (const token of rawTokens) {
+      if (item.summary.toLowerCase().includes(token)) {
+        score += 30;
+        reasons.push(`匹配摘要: "${token}"`);
+      } else if (item.session_name.toLowerCase().includes(token)) {
+        score += 25;
+        reasons.push(`匹配会话: "${token}"`);
+      } else if (item.purpose && item.purpose.toLowerCase().includes(token)) {
+        score += 20;
+        reasons.push(`匹配用途: "${token}"`);
+      } else if (item.usage_status && item.usage_status.toLowerCase().includes(token)) {
+        score += 15;
+        reasons.push(`匹配状态: "${token}"`);
+      } else if (item.server_host.includes(token) || (item.peer_server_host && item.peer_server_host.includes(token))) {
+        score += 20;
+        reasons.push(`匹配节点 IP: "${token}"`);
+      } else if (target.includes(token)) {
+        score += 10;
+        reasons.push(`匹配索引文本: "${token}"`);
+      }
+    }
+
+    const ageDays = (Date.now() - new Date(item.created_at).getTime()) / (1000 * 3600 * 24);
+    if (ageDays < 7) score += 5;
+
+    return {
+      ...item,
+      score,
+      relevance_reasons: Array.from(new Set(reasons)),
+    };
+  });
+
+  return scored
+    .filter(s => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+

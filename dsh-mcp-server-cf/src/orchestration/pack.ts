@@ -44,8 +44,22 @@ function deduct(rem: Rem, t: TaskSpec): void {
   rem.cpu_cores -= (t.min_cpu_cores ?? 0);
 }
 
-function capacityScore(c: ServerCapacity): number {
-  return c.gpu_count * 1000 + c.gpu_mem_gb + c.ram_gb * 0.01;
+function capacityScore(c: ServerCapacity, t: TaskSpec): number {
+  let score = c.gpu_count * 1000 + c.gpu_mem_gb + c.ram_gb * 0.01;
+  
+  // Dataset Affinity Boost
+  if (t.preferred_datasets && t.preferred_datasets.length > 0 && c.datasets) {
+    let matched = 0;
+    const serverDatasetNames = c.datasets.map(d => d.name);
+    for (const pd of t.preferred_datasets) {
+      if (serverDatasetNames.includes(pd)) matched++;
+    }
+    if (matched > 0) {
+      score += matched * 100000; // Massive boost for each matched dataset
+    }
+  }
+  
+  return score;
 }
 
 export function allocateTasks(tasks: TaskSpec[], servers: ServerCapacity[]): PackResult {
@@ -69,12 +83,22 @@ export function allocateTasks(tasks: TaskSpec[], servers: ServerCapacity[]): Pac
     const ranked = servers
       .map(s => ({ s, r: rem[s.server_id] }))
       .filter(({ r }) => canFit(r, t))
-      .sort((a, b) => capacityScore(b.r) - capacityScore(a.r));
-    candidates_per_task[t.id] = ranked.map(({ s, r }) => ({
-      server_id: s.server_id,
-      name: s.name,
-      why_ranked: `free ${r.gpu_count} GPU, ${Math.floor(r.gpu_mem_gb)} GB VRAM, ${r.ram_gb} GB RAM${s.stale ? ' (static spec, load stale)' : ''}`,
-    }));
+      .sort((a, b) => capacityScore(b.r, t) - capacityScore(a.r, t));
+    
+    // Check if the first ranked candidate had a dataset match and mention it in why_ranked
+    let affinity_msg = '';
+    candidates_per_task[t.id] = ranked.map(({ s, r }) => {
+      let matched_datasets = 0;
+      if (t.preferred_datasets && r.datasets) {
+        matched_datasets = r.datasets.filter(d => t.preferred_datasets!.includes(d.name)).length;
+      }
+      const dataset_msg = matched_datasets > 0 ? `, matches ${matched_datasets} datasets` : '';
+      return {
+        server_id: s.server_id,
+        name: s.name,
+        why_ranked: `free ${r.gpu_count} GPU, ${Math.floor(r.gpu_mem_gb)} GB VRAM, ${r.ram_gb} GB RAM${s.stale ? ' (static spec, load stale)' : ''}${dataset_msg}`,
+      };
+    });
 
     const first = ranked[0];
     if (!first) {

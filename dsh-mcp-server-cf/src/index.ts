@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { Env } from './db/schema';
 import { handleMcpRequest } from './mcp/handler';
-import { createSession, handleSseConnection, getSession, removeSession, sendResponse } from './mcp/transport';
 import serversApi from './api/servers';
 import proxiesApi from './api/proxies';
 import verifyApi from './api/verify';
@@ -18,39 +17,22 @@ const app = new Hono<{ Bindings: Env }>();
 // Replace with: app.use('*', cors({ origin: 'https://yourdomain.com' }));
 app.use('*', cors());
 
-// === MCP Endpoints ===
+// === MCP Endpoint (Streamable HTTP only) ===
 
-// SSE transport: client connects here to receive events
-app.get('/mcp', async (c) => {
-  const session = createSession();
-  return handleSseConnection(c, session.id);
-});
-
-// POST: client sends JSON-RPC messages here
-// Supports both SSE transport (?session=xxx) and Streamable HTTP transport (direct POST)
+// POST /mcp: Streamable HTTP transport — the only transport that works reliably
+// on stateless serverless platforms like Cloudflare Workers.
+// Client POSTs JSON-RPC, server returns JSON-RPC response directly.
 app.post('/mcp', async (c) => {
   const body = await c.req.json();
   const ctx = { env: c.env, db: c.env.DB };
-
-  // Determine mode: session query param = SSE mode, else Streamable HTTP
-  const sessionId = c.req.query('session') || c.req.header('Mcp-Session-Id');
-  if (sessionId && getSession(sessionId)) {
-    // SSE mode: send response via the SSE stream
-    const response = await handleMcpRequest(body, ctx);
-    sendResponse(sessionId, response);
-    return c.json({ accepted: true });
-  }
-
-  // Streamable HTTP mode: process and return the response directly
   const response = await handleMcpRequest(body, ctx);
-
-  // For initialize, set a session header so the client can reuse it
-  if (body?.method === 'initialize') {
-    const newSession = createSession();
-    c.header('Mcp-Session-Id', newSession.id);
-  }
-
   return c.json(response);
+});
+
+// GET /mcp: Return 405 so MCP clients fall back to Streamable HTTP POST.
+// SSE transport is not supported on stateless serverless platforms.
+app.get('/mcp', (c) => {
+  return c.text('SSE transport is not supported. Use Streamable HTTP (POST).', 405);
 });
 
 // === REST API Routes ===

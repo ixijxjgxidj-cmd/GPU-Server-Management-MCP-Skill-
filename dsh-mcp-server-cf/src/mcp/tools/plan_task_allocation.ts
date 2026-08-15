@@ -23,6 +23,11 @@ export const planTaskAllocationTool: McpTool = {
               min_ram_gb: { type: 'number' },
               min_disk_gb: { type: 'number' },
               min_cpu_cores: { type: 'number' },
+              preferred_datasets: {
+                type: 'array',
+                items: { type: 'string' },
+                description: '可选, 优先调度到包含此列表数据的数据集所在的节点(Dataset Affinity)',
+              },
             },
             required: ['id'],
           },

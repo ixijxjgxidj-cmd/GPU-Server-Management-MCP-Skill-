@@ -26,6 +26,9 @@ export interface DBServer {
   current_task: string | null;   // What task is currently running (e.g. "train-llm", "inference-api")
   current_agent: string | null;  // Which agent is using this server (e.g. "deepseek-coder", "user-abc")
   task_started_at: string | null; // When the current task started
+  task_duration_minutes?: number | null; // Optional countdown duration in minutes
+  task_expires_at?: string | null;       // When the task lease expires (ISO string)
+  server_expires_at?: string | null;     // Physical server expiration/lease time (ISO string) or null if permanent
   notes: string | null;  // User remarks/notes about the server
   enabled: number;  // 1=enabled (visible to MCP), 0=disabled (hidden from MCP)
   ssh_banner: string | null;  // SSH server banner text
@@ -43,6 +46,7 @@ export interface DBServer {
   torch_version: string | null;    // e.g. "2.3.1+cu121"
   cuda_version: string | null;     // driver CUDA, e.g. "12.4"
   top_cpu_tasks: string | null;    // JSON array [{cpu:number, mem:number, cmd:string}] — live top-3 by CPU
+  datasets?: string | null;        // JSON array [{name:string, path:string, size_gb:number}]
   created_at: string;
   updated_at: string;
 }
@@ -78,6 +82,26 @@ export interface DBReachability {
   last_tested_at: string;
 }
 
+export interface DBBackupIndex {
+  id: string;
+  server_host: string;
+  server_id: string | null;
+  folder_name: string;
+  session_name: string;
+  summary: string;
+  backup_type: 'google_drive' | 'peer_server' | 'local_weights';
+  purpose: string | null;
+  usage_status: string | null;
+  remote_path: string;
+  peer_server_host: string | null;
+  peer_connect_cmd: string | null;
+  metadata_json: string;
+  search_text: string;
+  embedding?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface DBServerNote {
   server_id: string;
   topic: string;
@@ -85,6 +109,8 @@ export interface DBServerNote {
   updated_by: string | null;
   updated_at: string;
 }
+
+
 
 // Types that include D1 result types
 export interface Env {

@@ -22,6 +22,13 @@ export function resolveCapacity(db: DBServer, now: string): ServerCapacity {
     ? Math.max(0, physicalCards - running)
     : physicalCards;
 
+  let parsedDatasets = [];
+  try {
+    if (db.datasets) parsedDatasets = JSON.parse(db.datasets);
+  } catch (e) {
+    // ignore parse error
+  }
+
   if (!stale) {
     return {
       server_id: db.id,
@@ -33,6 +40,7 @@ export function resolveCapacity(db: DBServer, now: string): ServerCapacity {
       cpu_cores: db.cpu_cores ?? 0,
       stale: false,
       gpu_sharing_mode: mode,
+      datasets: parsedDatasets,
     };
   }
   // Static fallback: no live running_tasks, so exclusive == physical cards too.
@@ -46,5 +54,6 @@ export function resolveCapacity(db: DBServer, now: string): ServerCapacity {
     cpu_cores: db.cpu_cores ?? 0,
     stale: true,
     gpu_sharing_mode: mode,
+    datasets: parsedDatasets,
   };
 }
