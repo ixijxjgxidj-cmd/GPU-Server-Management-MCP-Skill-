@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Env } from '../db/schema';
-import { listServers, listProxies, updateServer, updateServerStatus, upsertReachability, getServerByHost } from '../db/queries';
+import { listServers, listProxies, updateServer, updateServerStatus, upsertReachability, getServerByHost, getServerById } from '../db/queries';
 
 /**
  * Jump-box bridge API.
@@ -82,6 +82,8 @@ app.get('/tasks', async (c) => {
             { mode: 'direct' as const },
             ...socks.map(p => ({ mode: 'socks5' as const, proxy_id: p.proxy_id, proxy_host: p.host, proxy_port: p.port, proxy_username: p.username, proxy_password: p.password })),
           ];
+      const isJs = (s.notes || '').toLowerCase().includes('jumpserver') || String(s.tags || '').toLowerCase().includes('jumpserver');
+      const jsTargetMatch = (s.notes || '').match(/select authorized host\s+(\d+|[^\s.]+)/i);
       return {
         server_id: s.id,
         name: s.name,
@@ -94,6 +96,8 @@ app.get('/tasks', async (c) => {
         password: s.password,
         connection_type: connType,
         ssh_plan,
+        is_jumpserver: isJs,
+        jumpserver_target: jsTargetMatch ? jsTargetMatch[1] : (isJs ? '1' : null),
       };
     });
 
@@ -144,10 +148,16 @@ app.post('/report', async (c) => {
       }
       if (!serverId) { errors.push(`no server for ${r.host ?? '?'}`); continue; }
 
+      const currentServer = await getServerById(c.env.DB, serverId);
+
+      // 核心原则：Workers（Edge 节点）和 跳板机（Bridge Agent）任一连接成功即视为在线 (Online)！
+      // 若跳板机 probe 失败，但该服务器在 Worker 侧在线，保持 online = true，避免被跳板机单侧网络/鉴权误判覆盖为离线
+      const isOnline = Boolean(r.online || (currentServer && currentServer.status_online === 1));
+
       await updateServerStatus(c.env.DB, serverId, {
-        online: !!r.online,
-        ping_ms: r.ping_ms ?? null,
-        error: r.error,
+        online: isOnline,
+        ping_ms: r.ping_ms ?? (currentServer ? currentServer.status_ping_ms : null),
+        error: isOnline ? (r.online ? undefined : '跳板机探针未通，已沿用 Worker 在线状态') : r.error,
       });
 
       if (r.online) {

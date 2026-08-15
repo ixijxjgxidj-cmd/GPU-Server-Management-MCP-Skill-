@@ -1,4 +1,4 @@
-name = "dsh-mcp-server"
+name = "gpu-mcp-server-cf"
 main = "src/index.ts"
 compatibility_date = "2025-01-14"
 

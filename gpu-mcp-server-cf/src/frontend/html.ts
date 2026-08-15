@@ -81,32 +81,43 @@ export const HTML = `<!DOCTYPE html>
       margin-right: 10px; box-shadow: 0 0 8px currentColor;
     }
     .card .title { 
-      font-size: 18px; font-weight: 600; margin-bottom: 16px; display: flex;
-      align-items: center; justify-content: space-between; 
+      font-size: 16px; font-weight: 600; margin-bottom: 16px; display: flex;
+      align-items: flex-start; justify-content: space-between; gap: 12px;
+    }
+    .card .title > span:first-child {
+      flex: 1; min-width: 0; word-break: break-all; overflow-wrap: anywhere; line-height: 1.4;
+    }
+    .card .title > span:last-child {
+      flex-shrink: 0; white-space: nowrap;
     }
     .card .info-row { 
-      display: flex; justify-content: space-between; padding: 8px 0;
-      font-size: 14px; color: var(--text-dim); border-bottom: 1px solid rgba(255,255,255,0.03);
+      display: flex; align-items: baseline; justify-content: space-between; padding: 8px 0; gap: 12px;
+      font-size: 13px; color: var(--text-dim); border-bottom: 1px solid rgba(255,255,255,0.03);
     }
     .card .info-row:last-of-type { border-bottom: none; }
-    .card .info-row span:first-child { flex-shrink: 0; margin-right: 12px; }
-    .card .info-row span:last-child { color: var(--text); font-weight: 500; text-align: right; overflow-wrap: anywhere; word-break: break-word; max-width: 85%; }
+    .card .info-row span:first-child { 
+      flex-shrink: 0; white-space: nowrap; min-width: 85px; color: #888; font-size: 13px; text-align: left; 
+    }
+    .card .info-row span:last-child { 
+      flex: 1; min-width: 0; color: var(--text); font-weight: 400; text-align: right; 
+      overflow-wrap: anywhere; word-break: break-all; line-height: 1.5; 
+    }
     
     .card .util-bar { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; flex: 1; margin: 0 12px; }
     .card .util-fill { height: 100%; border-radius: 3px; transition: width 0.3s ease; }
 
     .card .actions { 
       display: flex; gap: 8px; margin-top: 20px; padding-top: 16px;
-      border-top: 1px solid var(--border); flex-wrap: wrap;
+      border-top: 1px solid rgba(255,255,255,0.06); flex-wrap: wrap;
     }
     .card .actions button { 
-      flex: 1; min-width: 60px; padding: 8px 12px; border-radius: 8px; 
-      border: 1px solid var(--border); background: rgba(255,255,255,0.03); 
-      color: var(--text); cursor: pointer; font-size: 13px; font-weight: 500;
+      padding: 6px 14px; border-radius: 8px; white-space: nowrap;
+      border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); 
+      color: var(--text); cursor: pointer; font-size: 12px; font-weight: 500;
       transition: all 0.2s;
     }
-    .card .actions button:hover { background: var(--border); border-color: var(--text-dim); }
-    .card .actions button.danger:hover { background: var(--red-bg); border-color: var(--red); color: var(--red); }
+    .card .actions button:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); }
+    .card .actions button.danger:hover { background: rgba(239,68,68,0.15); border-color: var(--red); color: var(--red); }
 
     .btn-primary { 
       padding: 10px 20px; border-radius: 10px; border: none;
@@ -118,6 +129,10 @@ export const HTML = `<!DOCTYPE html>
       transform: translateY(-1px); box-shadow: 0 6px 16px rgba(59,130,246,0.4); 
       filter: brightness(1.1);
     }
+    #knowledgeCategoryFilters .btn { box-shadow: none !important; border: 1px solid transparent; border-radius: 20px; font-weight: 500; font-size: 13px; padding: 6px 16px; transition: all 0.2s; }
+    #knowledgeCategoryFilters .btn-primary { background: #fff !important; color: #000 !important; }
+    #knowledgeCategoryFilters .btn-secondary { background: transparent !important; color: #888 !important; }
+    #knowledgeCategoryFilters .btn-secondary:hover { color: #fff !important; background: rgba(255,255,255,0.06) !important; }
     .search-input { 
       padding: 10px 16px; border-radius: 10px; border: 1px solid var(--border);
       background: rgba(24,24,27,0.8); color: var(--text); font-size: 14px; width: 240px; 
@@ -267,85 +282,86 @@ export const HTML = `<!DOCTYPE html>
     <div class="grid" id="serverGrid"></div>
   </div>
   <div id="page-knowledge" class="page" style="display:none">
-    <div class="header" style="flex-direction:column;align-items:flex-start;gap:12px;">
-      <div style="display:flex;justify-content:space-between;width:100%;align-items:center;flex-wrap:wrap;gap:10px;">
-        <div style="display:flex;align-items:center;gap:12px;">
-          <h1 style="margin:0;">🧠 集群 RAG 排错与知识中枢</h1>
-          <span class="status-badge" style="background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid rgba(139,92,246,0.3);">遇错优先查询</span>
+    <div class="header" style="flex-direction:column;align-items:flex-start;gap:24px;padding-bottom:32px;border-bottom:1px solid rgba(255,255,255,0.06);">
+      <div style="display:flex;justify-content:space-between;width:100%;align-items:center;flex-wrap:wrap;gap:12px;">
+        <div style="display:flex;align-items:center;gap:16px;">
+          <h1 style="margin:0;font-size:28px;font-weight:600;letter-spacing:-0.5px;color:#fff;">知识中枢</h1>
         </div>
-        <button class="btn-primary" onclick="loadKnowledge()" style="font-size:13px;padding:6px 14px;">🔄 刷新知识库</button>
+        <button class="btn btn-secondary" onclick="loadKnowledge()" style="font-size:13px;padding:8px 16px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:20px;color:var(--text);font-weight:500;transition:all 0.2s;box-shadow:none;" onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">刷新</button>
       </div>
-      <div style="font-size:13px;color:var(--text-dim);line-height:1.5;">
-        聚合全集群服务器<b>踩坑经验 (Pitfalls)</b>、<b>运维配置备忘 (Notes)</b> 与 <b>实验数据备份 (Backups)</b>。遇到任何错误、依赖冲突或环境问题，输入关键词或报错日志即可秒级语义检索排错方案。
+      <div style="font-size:15px;color:#888;line-height:1.6;max-width:700px;font-weight:400;">
+        聚合全集群的经验、配置备忘与实验备份。遇到环境依赖或报错问题，输入日志或关键词即可进行语义检索。
       </div>
-      <div style="display:flex;gap:10px;width:100%;flex-wrap:wrap;margin-top:4px;">
-        <input class="search-input" id="knowledgeSearchInput" style="flex:1;min-width:280px;" placeholder="🔍 输入报错日志 (如 CUDA out of memory / NCCL timeout)、组件名、驱动冲突或问题..." oninput="onKnowledgeSearchInput()">
-        <div style="display:flex;gap:6px;flex-wrap:wrap;" id="knowledgeCategoryFilters">
-          <button class="btn btn-primary" id="kCat-all" onclick="setKnowledgeCategory('all')" style="font-size:12px;padding:6px 12px;">⚡ 全部知识</button>
-          <button class="btn btn-secondary" id="kCat-pitfall" onclick="setKnowledgeCategory('pitfall')" style="font-size:12px;padding:6px 12px;">⚠️ 踩坑避坑</button>
-          <button class="btn btn-secondary" id="kCat-note" onclick="setKnowledgeCategory('note')" style="font-size:12px;padding:6px 12px;">📝 节点备注</button>
-          <button class="btn btn-secondary" id="kCat-backup" onclick="setKnowledgeCategory('backup')" style="font-size:12px;padding:6px 12px;">📦 实验备份</button>
-        </div>
+      <div style="display:flex;gap:16px;width:100%;flex-wrap:wrap;margin-top:4px;">
+        <input class="search-input" id="knowledgeSearchInput" style="flex:1;min-width:280px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.04);padding:14px 20px;font-size:15px;border-radius:14px;color:#fff;transition:all 0.2s;outline:none;box-shadow:none;" placeholder="搜索报错日志或组件..." oninput="onKnowledgeSearchInput()" onfocus="this.style.background='rgba(255,255,255,0.06)';this.style.borderColor='rgba(255,255,255,0.1)';this.style.boxShadow='none';" onblur="this.style.background='rgba(255,255,255,0.04)';this.style.borderColor='rgba(255,255,255,0.04)';">
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:2px;" id="knowledgeCategoryFilters">
+        <button class="btn btn-primary" id="kCat-all" onclick="setKnowledgeCategory('all')">全部</button>
+        <button class="btn btn-secondary" id="kCat-pitfall" onclick="setKnowledgeCategory('pitfall')">避坑经验</button>
+        <button class="btn btn-secondary" id="kCat-note" onclick="setKnowledgeCategory('note')">节点备注</button>
+        <button class="btn btn-secondary" id="kCat-backup" onclick="setKnowledgeCategory('backup')">实验备份</button>
       </div>
     </div>
-    <div style="padding:0 24px 24px;">
-      <div id="knowledgeResultsGrid" class="grid" style="grid-template-columns:repeat(auto-fill, minmax(420px, 1fr));gap:16px;padding:0;"></div>
+    <div style="padding:0 24px 48px;">
+      <div id="knowledgeResultsGrid" style="display:flex;flex-direction:column;gap:32px;max-width:900px;"></div>
     </div>
   </div>
   <div id="page-datasets" class="page" style="display:none">
-    <div class="header">
-      <div>
-        <h1 style="display:flex;align-items:center;gap:8px">📦 集群数据集与备份索引大盘</h1>
-        <p style="font-size:13px;color:var(--text-dim);margin-top:4px">
-          查看与管理各算力机的<b>预存数据集 (Dataset Affinity)</b> 及 <b>RAG 向量备份索引库</b>。所有备份索引均以源机 IP 为唯一计量生命周期（若机器被删除，索引自动同步清理）。
-        </p>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <button class="btn-primary" onclick="showRegisterDatasetModal()">+ 登记数据集</button>
-        <button class="btn-primary" onclick="refreshDatasetsPage()" style="background:rgba(255,255,255,0.08)">🔄 全部刷新</button>
+    <div class="header" style="flex-direction:column;align-items:flex-start;gap:20px;padding-bottom:24px;border-bottom:1px solid rgba(255,255,255,0.06);">
+      <div style="display:flex;justify-content:space-between;width:100%;align-items:center;flex-wrap:wrap;gap:12px;">
+        <div>
+          <h1 style="margin:0;font-size:28px;font-weight:600;letter-spacing:-0.5px;color:#fff;">数据集与备份</h1>
+          <p style="font-size:14px;color:#888;margin-top:6px;max-width:750px;line-height:1.5">
+            各算力节点的预存数据集 (Dataset Affinity) 及 RAG 向量备份索引。备份索引与源机生命周期绑定。
+          </p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-secondary" onclick="showRegisterDatasetModal()" style="font-size:13px;padding:8px 16px;background:#fff;color:#000;border:none;border-radius:20px;font-weight:500;">登记数据集</button>
+          <button class="btn btn-secondary" onclick="refreshDatasetsPage()" style="font-size:13px;padding:8px 16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:20px;color:var(--text);font-weight:500;">刷新</button>
+        </div>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:16px;margin:0 24px 20px;">
-      <div style="padding:16px;background:var(--card-bg);border:1px solid var(--border);border-radius:12px;">
-        <div style="font-size:12px;color:var(--text-dim)">📊 预存数据集总数</div>
-        <div id="datasetCountStat" style="font-size:24px;font-weight:700;color:var(--primary);margin-top:4px">0 个</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:16px;margin:24px 24px 20px;">
+      <div style="padding:18px 20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:14px;">
+        <div style="font-size:12px;color:#888;font-weight:500;">预存数据集总数</div>
+        <div id="datasetCountStat" style="font-size:22px;font-weight:600;color:#fff;margin-top:6px">0 个</div>
       </div>
-      <div style="padding:16px;background:var(--card-bg);border:1px solid var(--border);border-radius:12px;">
-        <div style="font-size:12px;color:var(--text-dim)">💾 预估总存储占用</div>
-        <div id="datasetSizeStat" style="font-size:24px;font-weight:700;color:var(--green);margin-top:4px">0 GB</div>
+      <div style="padding:18px 20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:14px;">
+        <div style="font-size:12px;color:#888;font-weight:500;">预估总存储占用</div>
+        <div id="datasetSizeStat" style="font-size:22px;font-weight:600;color:#fff;margin-top:6px">0 GB</div>
       </div>
-      <div style="padding:16px;background:var(--card-bg);border:1px solid var(--border);border-radius:12px;">
-        <div style="font-size:12px;color:var(--text-dim)">🖥️ 覆盖算力节点</div>
-        <div id="datasetServerStat" style="font-size:24px;font-weight:700;color:var(--yellow);margin-top:4px">0 台</div>
+      <div style="padding:18px 20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:14px;">
+        <div style="font-size:12px;color:#888;font-weight:500;">覆盖算力节点</div>
+        <div id="datasetServerStat" style="font-size:22px;font-weight:600;color:#fff;margin-top:6px">0 台</div>
       </div>
-      <div style="padding:16px;background:var(--card-bg);border:1px solid var(--border);border-radius:12px;">
-        <div style="font-size:12px;color:var(--text-dim)">🗂️ RAG 备份索引记录</div>
-        <div id="backupCountStat" style="font-size:24px;font-weight:700;color:#c084fc;margin-top:4px">0 条</div>
+      <div style="padding:18px 20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:14px;">
+        <div style="font-size:12px;color:#888;font-weight:500;">RAG 备份索引记录</div>
+        <div id="backupCountStat" style="font-size:22px;font-weight:600;color:#fff;margin-top:6px">0 条</div>
       </div>
     </div>
 
     <!-- Section 1: Pre-cached Datasets -->
-    <div style="margin:0 24px 12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border-bottom:1px solid var(--border);padding-bottom:12px">
+    <div style="margin:24px 24px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border-bottom:1px solid rgba(255,255,255,0.06);padding-bottom:12px">
       <div>
-        <h2 style="font-size:18px;font-weight:600;display:flex;align-items:center;gap:6px">📁 算力节点预存数据集 (Affinity +100,000)</h2>
+        <h2 style="font-size:17px;font-weight:600;color:#fff;margin:0;">节点预存数据集</h2>
       </div>
-      <input class="search-input" id="datasetSearchInput" placeholder="过滤数据集/路径/服务器..." oninput="renderDatasets()" style="min-width:240px">
+      <input class="search-input" id="datasetSearchInput" placeholder="过滤数据集/路径/服务器..." oninput="renderDatasets()" style="min-width:240px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:8px 14px;font-size:13px;">
     </div>
     <div class="grid" id="datasetGrid"></div>
 
     <!-- Section 2: Backup Indexes & RAG Vector Search -->
-    <div style="margin:32px 24px 12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border-bottom:1px solid var(--border);padding-bottom:12px">
+    <div style="margin:40px 24px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border-bottom:1px solid rgba(255,255,255,0.06);padding-bottom:12px">
       <div>
-        <h2 style="font-size:18px;font-weight:600;display:flex;align-items:center;gap:6px">🗂️ 云端备份索引库与 RAG 语义检索 (IP 生命周期绑定)</h2>
-        <p style="font-size:12px;color:var(--text-dim);margin-top:2px">当通过 <code>plan_server_backup</code> 备份时自动建库。支持输入自然语言或指标关键词进行 RAG 混合检索。</p>
+        <h2 style="font-size:17px;font-weight:600;color:#fff;margin:0;">云端备份索引库</h2>
+        <p style="font-size:13px;color:#888;margin-top:4px;line-height:1.4">支持输入自然语言或指标关键词进行 RAG 混合检索。</p>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <input class="search-input" id="ragSearchInput" placeholder="🔍 RAG 语义搜索 (如: loss 0.18, 7b权重, 评估集)..." oninput="onRagSearchInput()" style="min-width:280px">
-        <select id="backupTypeFilter" onchange="loadBackups()" style="padding:8px 12px;background:var(--card-bg);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:13px">
-          <option value="">全部备份类型</option>
-          <option value="google_drive">☁️ Google Drive</option>
-          <option value="peer_server">🔄 对端中转</option>
-          <option value="local_weights">📥 本地权重</option>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <input class="search-input" id="ragSearchInput" placeholder="搜索备份与模型指标 (如 loss 0.18)..." oninput="onRagSearchInput()" style="min-width:260px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:8px 14px;font-size:13px;">
+        <select id="backupTypeFilter" onchange="loadBackups()" style="padding:8px 12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);color:var(--text);border-radius:10px;font-size:13px;outline:none;">
+          <option value="">全部类型</option>
+          <option value="google_drive">Google Drive</option>
+          <option value="peer_server">对端中转</option>
+          <option value="local_weights">本地权重</option>
         </select>
       </div>
     </div>
@@ -552,51 +568,37 @@ export const HTML = `<!DOCTYPE html>
       items.forEach(function(item) {
         const card = document.createElement('div');
         card.className = 'card';
-        card.style.cssText = 'padding:18px 20px;border-radius:14px;background:var(--card-bg);border:1px solid var(--border);position:relative;display:flex;flex-direction:column;gap:12px;transition:all 0.25s ease;box-shadow:0 4px 12px rgba(0,0,0,0.15);';
+        card.style.cssText = 'padding:0 0 32px 0;border-bottom:1px solid rgba(255,255,255,0.06);background:transparent;position:relative;display:flex;flex-direction:column;gap:16px;transition:all 0.2s ease;';
 
         // Top Row: Badges
         const topRow = document.createElement('div');
-        topRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;';
-
-        const leftBadges = document.createElement('div');
-        leftBadges.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;';
+        topRow.style.cssText = 'display:flex;align-items:center;flex-wrap:wrap;gap:8px;';
 
         // Type Badge
         const typeBadge = document.createElement('span');
-        typeBadge.style.cssText = 'padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;';
+        typeBadge.style.cssText = 'font-size:11px;font-weight:600;color:#888;letter-spacing:0.5px;border:1px solid rgba(255,255,255,0.1);padding:2px 8px;border-radius:6px;background:rgba(255,255,255,0.02);';
         if (item.source_type === 'pitfall') {
-          typeBadge.style.background = 'rgba(245,158,11,0.18)';
-          typeBadge.style.color = '#fbbf24';
-          typeBadge.style.border = '1px solid rgba(245,158,11,0.35)';
-          typeBadge.textContent = '⚠️ 避坑经验';
+          typeBadge.textContent = '避坑经验';
         } else if (item.source_type === 'backup_index') {
-          typeBadge.style.background = 'rgba(16,185,129,0.18)';
-          typeBadge.style.color = '#4ade80';
-          typeBadge.style.border = '1px solid rgba(16,185,129,0.35)';
-          typeBadge.textContent = '📦 实验备份';
+          typeBadge.textContent = '实验备份';
         } else {
-          typeBadge.style.background = 'rgba(59,130,246,0.18)';
-          typeBadge.style.color = '#60a5fa';
-          typeBadge.style.border = '1px solid rgba(59,130,246,0.35)';
-          typeBadge.textContent = '📝 运维备忘';
+          typeBadge.textContent = '运维备忘';
         }
-        leftBadges.appendChild(typeBadge);
+        topRow.appendChild(typeBadge);
 
         // Server Badge
         if (item.server_name || item.server_host) {
           const sBadge = document.createElement('span');
-          sBadge.style.cssText = 'padding:2px 8px;border-radius:6px;font-size:11px;background:rgba(255,255,255,0.06);color:var(--text);border:1px solid rgba(255,255,255,0.1);font-family:monospace;';
-          sBadge.textContent = '🖥️ ' + (item.server_name || item.server_host);
-          leftBadges.appendChild(sBadge);
+          sBadge.style.cssText = 'font-size:13px;color:#666;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;';
+          sBadge.textContent = item.server_name || item.server_host;
+          topRow.appendChild(sBadge);
         }
-
-        topRow.appendChild(leftBadges);
 
         // Score Badge
         if (item.score > 0) {
           const scoreBadge = document.createElement('span');
-          scoreBadge.style.cssText = 'font-size:11px;font-weight:700;color:#f472b6;padding:2px 6px;border-radius:4px;background:rgba(244,114,182,0.1);border:1px solid rgba(244,114,182,0.25);';
-          scoreBadge.textContent = '🔥 匹配度: ' + Math.min(100, Math.round(item.score * 2)) + '%';
+          scoreBadge.style.cssText = 'font-size:13px;color:#555;';
+          scoreBadge.textContent = '· 匹配 ' + Math.min(100, Math.round(item.score * 2)) + '%';
           topRow.appendChild(scoreBadge);
         }
 
@@ -604,40 +606,41 @@ export const HTML = `<!DOCTYPE html>
 
         // Title
         const titleDiv = document.createElement('div');
-        titleDiv.style.cssText = 'font-size:16px;font-weight:700;color:#fff;line-height:1.4;';
+        titleDiv.style.cssText = 'font-size:18px;font-weight:500;color:#fff;line-height:1.4;letter-spacing:0.2px;';
         titleDiv.textContent = item.title;
         card.appendChild(titleDiv);
 
         // Problem summary
         if (item.problem_summary) {
           const pBox = document.createElement('div');
-          pBox.style.cssText = 'font-size:12px;color:var(--text-dim);background:rgba(0,0,0,0.25);padding:8px 12px;border-radius:8px;border-left:3px solid rgba(255,255,255,0.15);line-height:1.5;white-space:pre-wrap;';
-          pBox.innerHTML = '<span style="color:var(--text);font-weight:600;">⚠️ 问题/背景: </span>' + escHtml(item.problem_summary);
+          pBox.style.cssText = 'font-size:14px;color:#aaa;line-height:1.6;white-space:pre-wrap;font-weight:400;';
+          pBox.textContent = item.problem_summary;
           card.appendChild(pBox);
         }
 
         // Solution / Workaround Box
         if (item.workaround_or_content) {
           const solBox = document.createElement('div');
-          solBox.style.cssText = 'font-size:12px;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.25);padding:10px 12px;border-radius:8px;display:flex;flex-direction:column;gap:6px;';
+          solBox.style.cssText = 'font-size:14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);padding:20px;border-radius:12px;display:flex;flex-direction:column;gap:16px;margin-top:8px;';
 
           const sHead = document.createElement('div');
           sHead.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
-          sHead.innerHTML = '<span style="color:#4ade80;font-weight:700;">💡 解决方案 / 正确执行指令:</span>';
+          sHead.innerHTML = '<span style="color:#666;font-weight:500;font-size:11px;letter-spacing:0.5px;text-transform:uppercase;">SOLUTION / COMMANDS</span>';
 
           const copyBtn = document.createElement('button');
-          copyBtn.className = 'btn btn-secondary';
-          copyBtn.style.cssText = 'padding:2px 8px;font-size:11px;font-weight:600;border-radius:4px;';
-          copyBtn.textContent = '📋 复制方案';
+          copyBtn.style.cssText = 'background:transparent;border:none;color:#666;font-size:12px;cursor:pointer;padding:4px 8px;border-radius:6px;transition:all 0.2s;font-weight:500;';
+          copyBtn.textContent = 'Copy';
+          copyBtn.onmouseover = () => { copyBtn.style.color = '#fff'; copyBtn.style.background = 'rgba(255,255,255,0.05)'; };
+          copyBtn.onmouseout = () => { copyBtn.style.color = '#666'; copyBtn.style.background = 'transparent'; };
           copyBtn.onclick = function() {
             navigator.clipboard.writeText(item.workaround_or_content);
-            showToast('已复制解决方案与执行指令', 'success');
+            showToast('Copied to clipboard', 'success');
           };
           sHead.appendChild(copyBtn);
           solBox.appendChild(sHead);
 
           const sText = document.createElement('pre');
-          sText.style.cssText = 'margin:0;font-family:monospace;font-size:12px;color:#bbf7d0;white-space:pre-wrap;word-break:break-all;line-height:1.45;';
+          sText.style.cssText = 'margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:13px;color:#e5e5e5;white-space:pre-wrap;word-break:break-all;line-height:1.6;';
           sText.textContent = item.workaround_or_content;
           solBox.appendChild(sText);
 
@@ -1023,22 +1026,22 @@ export const HTML = `<!DOCTYPE html>
       }
 
       const typeMeta = {
-        google_drive: { icon: '☁️', label: 'Google Drive 全量', color: '#60a5fa', bg: 'rgba(96,165,250,0.15)' },
-        peer_server: { icon: '🔄', label: '对端中转存储', color: '#34d399', bg: 'rgba(52,211,153,0.15)' },
-        local_weights: { icon: '📥', label: '本地核心产物', color: '#fbbf24', bg: 'rgba(251,191,36,0.15)' },
+        google_drive: { label: 'Google Drive 全量', color: '#aaa', bg: 'rgba(255,255,255,0.06)' },
+        peer_server: { label: '对端中转', color: '#aaa', bg: 'rgba(255,255,255,0.06)' },
+        local_weights: { label: '本地核心', color: '#aaa', bg: 'rgba(255,255,255,0.06)' },
       };
 
       backups.forEach(function(b) {
         const card = document.createElement('div');
         card.className = 'card';
 
-        const tm = typeMeta[b.backup_type] || { icon: '📦', label: b.backup_type, color: 'var(--text)', bg: 'rgba(255,255,255,0.1)' };
+        const tm = typeMeta[b.backup_type] || { label: b.backup_type, color: '#aaa', bg: 'rgba(255,255,255,0.06)' };
 
         // Title
         const titleDiv = document.createElement('div');
         titleDiv.className = 'title';
-        titleDiv.innerHTML = '<span style="display:flex;align-items:flex-start;gap:8px;word-break:break-word;padding-right:12px;">' + tm.icon + ' <b style="color:var(--text);line-height:1.4;">' + escHtml(b.summary) + '</b></span>' +
-          '<span style="font-size:12px;padding:3px 8px;border-radius:6px;background:' + tm.bg + ';color:' + tm.color + ';font-weight:600;flex-shrink:0;">' + tm.label + (b.score ? ' · 匹配 ' + b.score + '分' : '') + '</span>';
+        titleDiv.innerHTML = '<span style="color:#fff;font-weight:600;font-size:15px;line-height:1.4;word-break:break-all;overflow-wrap:anywhere;">' + escHtml(b.summary) + '</span>' +
+          '<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#aaa;font-weight:500;flex-shrink:0;white-space:nowrap;">' + tm.label + (b.score ? ' · ' + b.score + '分' : '') + '</span>';
         card.appendChild(titleDiv);
 
         // Info rows
@@ -1050,16 +1053,16 @@ export const HTML = `<!DOCTYPE html>
           card.appendChild(row);
         };
 
-        addRow('源服务器 IP', '<code style="font-size:12px;background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px">🔗 ' + escHtml(b.server_host) + '</code>');
+        addRow('源服务器 IP', '<code style="font-size:12px;background:rgba(255,255,255,0.04);padding:2px 6px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">' + escHtml(b.server_host) + '</code>');
         addRow('任务会话', '<b>' + escHtml(b.session_name) + '</b>');
-        addRow('存储路径', '<code style="font-size:12px;background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px;word-break:break-all">' + escHtml(b.remote_path) + '</code>');
+        addRow('存储路径', '<code style="font-size:12px;background:rgba(255,255,255,0.04);padding:3px 6px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;overflow-wrap:anywhere;text-align:left;display:inline-block;">' + escHtml(b.remote_path) + '</code>');
         if (b.peer_server_host) {
-          addRow('对端节点 IP', '<b>' + escHtml(b.peer_server_host) + '</b>');
+          addRow('对端节点 IP', '<code style="font-size:12px;background:rgba(255,255,255,0.04);padding:2px 6px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">' + escHtml(b.peer_server_host) + '</code>');
         }
         if (b.purpose) addRow('数据用途', escHtml(b.purpose));
         if (b.usage_status) addRow('使用状态', escHtml(b.usage_status));
         if (b.relevance_reasons && b.relevance_reasons.length > 0) {
-          addRow('RAG 匹配', '<span style="color:#c084fc">' + escHtml(b.relevance_reasons.join(', ')) + '</span>');
+          addRow('RAG 匹配', '<span style="color:#aaa">' + escHtml(b.relevance_reasons.join(', ')) + '</span>');
         }
         if (b.created_at) {
           const dt = new Date(b.created_at);
@@ -1072,11 +1075,11 @@ export const HTML = `<!DOCTYPE html>
 
         if (b.peer_connect_cmd) {
           const connBtn = document.createElement('button');
-          connBtn.textContent = '📋 复制连接指令';
+          connBtn.textContent = '复制连接指令';
           connBtn.onclick = function() {
             if (navigator.clipboard && navigator.clipboard.writeText) {
               navigator.clipboard.writeText(b.peer_connect_cmd).then(function() {
-                showToast('✔ 对端 SSH 连接指令已复制', 'success');
+                showToast('已复制对端连接指令', 'success');
               });
             } else {
               prompt('复制连接指令:', b.peer_connect_cmd);
@@ -1086,11 +1089,11 @@ export const HTML = `<!DOCTYPE html>
         }
 
         const copyPathBtn = document.createElement('button');
-        copyPathBtn.textContent = '📁 复制路径';
+        copyPathBtn.textContent = '复制路径';
         copyPathBtn.onclick = function() {
           if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(b.remote_path).then(function() {
-              showToast('✔ 存储路径已复制', 'success');
+              showToast('已复制存储路径', 'success');
             });
           } else {
             prompt('复制路径:', b.remote_path);
@@ -1100,13 +1103,13 @@ export const HTML = `<!DOCTYPE html>
 
         const delBtn = document.createElement('button');
         delBtn.className = 'danger';
-        delBtn.textContent = '🗑️ 删除索引';
+        delBtn.textContent = '删除索引';
         delBtn.onclick = async function() {
           if (confirm('确定从 RAG 库中删除此备份索引（' + b.summary + '）？')) {
             try {
               const res = await API.deleteBackup(b.id);
               if (res.success) {
-                showToast('✔ 备份索引已删除', 'success');
+                showToast('已删除备份索引', 'success');
                 loadBackups();
               } else {
                 showToast('删除失败', 'error');
@@ -1185,8 +1188,8 @@ export const HTML = `<!DOCTYPE html>
         // Title
         const titleDiv = document.createElement('div');
         titleDiv.className = 'title';
-        titleDiv.innerHTML = '<span>📦 <b style="color:var(--text)">' + escHtml(d.name) + '</b></span>' +
-          '<span style="font-size:12px;padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.15);color:var(--primary);font-weight:600">' + (d.size_gb > 0 ? d.size_gb + ' GB' : '未标大小') + '</span>';
+        titleDiv.innerHTML = '<span style="color:#fff;font-weight:600;font-size:15px;line-height:1.4;word-break:break-all;overflow-wrap:anywhere;">' + escHtml(d.name) + '</span>' +
+          '<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#aaa;font-weight:500;flex-shrink:0;white-space:nowrap;">' + (d.size_gb > 0 ? d.size_gb + ' GB' : '未标大小') + '</span>';
         card.appendChild(titleDiv);
 
         // Info rows
@@ -1198,9 +1201,8 @@ export const HTML = `<!DOCTYPE html>
           card.appendChild(row);
         };
 
-        const serverStatusBadge = d.status_online ? '<span style="color:var(--green)">🟢</span>' : '<span style="color:var(--red)">🔴</span>';
-        addRow('所在服务器', serverStatusBadge + ' <b>' + escHtml(d.server_name) + '</b> (' + escHtml(d.server_host) + ':' + d.server_port + ')');
-        addRow('远端路径', '<code style="font-size:12px;background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px;word-break:break-all">' + escHtml(d.path) + '</code>');
+        addRow('所在服务器', '<b>' + escHtml(d.server_name) + '</b> <span style="color:#666;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">(' + escHtml(d.server_host) + ':' + d.server_port + ')</span>');
+        addRow('远端路径', '<code style="font-size:12px;background:rgba(255,255,255,0.04);padding:3px 6px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;overflow-wrap:anywhere;text-align:left;display:inline-block;">' + escHtml(d.path) + '</code>');
         if (d.description) addRow('用途描述', escHtml(d.description));
         if (d.added_at) {
           const dt = new Date(d.added_at);
@@ -1212,12 +1214,12 @@ export const HTML = `<!DOCTYPE html>
         actionsDiv.className = 'actions';
 
         const copyBtn = document.createElement('button');
-        copyBtn.textContent = '📋 复制亲和参数';
+        copyBtn.textContent = '复制亲和参数';
         copyBtn.onclick = function() {
           const snippet = 'preferred_datasets: ["' + d.name + '"]';
           if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(snippet).then(function() {
-              showToast('✔ 亲和参数已复制到剪贴板！可直接粘贴到 plan_task_allocation', 'success');
+              showToast('已复制亲和参数到剪贴板', 'success');
             }).catch(function() {
               prompt('请手动复制亲和参数:', snippet);
             });
@@ -1228,11 +1230,11 @@ export const HTML = `<!DOCTYPE html>
         actionsDiv.appendChild(copyBtn);
 
         const copyPathBtn = document.createElement('button');
-        copyPathBtn.textContent = '📁 复制路径';
+        copyPathBtn.textContent = '复制路径';
         copyPathBtn.onclick = function() {
           if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(d.path).then(function() {
-              showToast('✔ 远端路径已复制', 'success');
+              showToast('已复制远端路径', 'success');
             });
           } else {
             prompt('请手动复制路径:', d.path);
@@ -1242,13 +1244,13 @@ export const HTML = `<!DOCTYPE html>
 
         const delBtn = document.createElement('button');
         delBtn.className = 'danger';
-        delBtn.textContent = '🗑️ 移除登记';
+        delBtn.textContent = '移除登记';
         delBtn.onclick = async function() {
           if (confirm('确定从服务器 [' + d.server_name + '] 移除数据集 [' + d.name + '] 的登记？')) {
             try {
               const res = await API.removeDataset(d.server_id, d.name);
               if (res.success) {
-                showToast('✔ 数据集已成功移除登记', 'success');
+                showToast('已移除数据集登记', 'success');
                 loadDatasets();
               } else {
                 showToast('移除失败: ' + (res.error || '未知错误'), 'error');

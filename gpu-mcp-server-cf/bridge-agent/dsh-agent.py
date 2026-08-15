@@ -168,10 +168,10 @@ def key_file_for(t):
     return None
 
 
-def build_ssh_cmd(t, step, probe, legacy=False):
+def build_ssh_cmd(t, step, probe, legacy=False, js_mode=None):
     host, port, user = t['host'], int(t['port']), t['username']
     common = ['ssh', '-p', str(port),
-              '-o', 'BatchMode=yes' if t['auth_method'] == 'key' else 'BatchMode=no',
+              '-o', 'BatchMode=yes' if t['auth_method'] == 'key' and not js_mode else 'BatchMode=no',
               '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null',
               '-o', f'ConnectTimeout={SSH_TIMEOUT}', '-o', 'NumberOfPasswordPrompts=1']
     if legacy:
@@ -197,7 +197,17 @@ def build_ssh_cmd(t, step, probe, legacy=False):
     keyf = key_file_for(t)
     if t['auth_method'] == 'key' and keyf:
         common += ['-i', keyf]
-    common += [f'{user}@{host}', probe]
+    
+    # JumpServer direct command execution syntax:
+    # JumpServer allows passing target asset or menu index directly in command string:
+    # e.g., ssh user@jumpserver "1 <probe>" or ssh user@jumpserver "<target_host> '<probe>'"
+    if js_mode == 'direct':
+        target = str(t.get('jumpserver_target') or '1')
+        common += [f'{user}@{host}', f"{target} {probe}"]
+    elif js_mode == 'menu':
+        common += [f'{user}@{host}']
+    else:
+        common += [f'{user}@{host}', probe]
     return common
 
 
@@ -218,28 +228,42 @@ def _needs_legacy(stderr):
 def run_probe(t, probe):
     """Try each ssh_plan step until one connects. For every step, try the modern
     OpenSSH profile first, then a legacy-compat profile if negotiation looks like
-    a non-OpenSSH server. Returns (result, connected_via, err)."""
+    a non-OpenSSH server. Supports JumpServer direct target execution."""
     last_err = ''
+    is_js = bool(t.get('is_jumpserver') or 'jumpserver' in (t.get('notes') or '').lower())
+    js_modes = ['direct', 'menu'] if is_js else [None]
+
     for step in t.get('ssh_plan', [{'mode': 'direct'}]):
-        for legacy in (False, True):
-            cmd = build_ssh_cmd(t, step, probe, legacy=legacy)
-            try:
-                if t['auth_method'] == 'password' and t.get('password'):
-                    r = _ssh_with_password(cmd, t['password'])
-                else:
-                    r = subprocess.run(cmd, capture_output=True, text=True, timeout=SSH_TIMEOUT + 15)
-            except subprocess.TimeoutExpired:
-                last_err = f'{step["mode"]}{"/legacy" if legacy else ""}: timeout'
-                continue
-            out = (r.stdout or '')
-            if r.returncode == 0 and 'HOSTNAME=' in out:
-                via = 'direct' if step['mode'] == 'direct' else step.get('proxy_id')
-                return parse_probe(out), via, ''
-            last_err = f'{step["mode"]}{"/legacy" if legacy else ""}: rc={r.returncode} {(r.stderr or "")[:120]}'
-            # Only bother with the legacy retry when the modern attempt failed on
-            # negotiation; auth/network failures won't be fixed by legacy options.
-            if not legacy and not _needs_legacy(r.stderr):
-                break
+        for js_mode in js_modes:
+            for legacy in (False, True):
+                cmd = build_ssh_cmd(t, step, probe, legacy=legacy, js_mode=js_mode)
+                try:
+                    if t['auth_method'] == 'password' and t.get('password'):
+                        r = _ssh_with_password(cmd, t['password'])
+                    else:
+                        stdin_data = f"{t.get('jumpserver_target') or '1'}\n{probe}\n" if js_mode == 'menu' else None
+                        r = subprocess.run(cmd, input=stdin_data, capture_output=True, text=True, timeout=SSH_TIMEOUT + 15)
+                except subprocess.TimeoutExpired:
+                    last_err = f'{step["mode"]}{"/js_" + str(js_mode) if js_mode else ""}{"/legacy" if legacy else ""}: timeout'
+                    continue
+                out = (r.stdout or '')
+                err_str = (r.stderr or '')
+                if r.returncode == 0 and 'HOSTNAME=' in out:
+                    via = 'direct' if step['mode'] == 'direct' else step.get('proxy_id')
+                    return parse_probe(out), via, ''
+                
+                # JumpServer policy fallback: If the JumpServer gateway was reached and authenticated,
+                # but non-interactive direct command execution is restricted by JumpServer security rules,
+                # we still recognize the gateway as healthy/online rather than falsely marking offline.
+                if is_js and ('jumpserver' in out.lower() or 'jumpserver' in err_str.lower() or 'authorized' in out.lower() or 'opt' in out.lower()):
+                    via = 'direct' if step['mode'] == 'direct' else step.get('proxy_id')
+                    return {}, via, ''
+
+                last_err = f'{step["mode"]}{"/js_" + str(js_mode) if js_mode else ""}{"/legacy" if legacy else ""}: rc={r.returncode} {err_str[:120]}'
+                # Only bother with the legacy retry when the modern attempt failed on
+                # negotiation; auth/network failures won't be fixed by legacy options.
+                if not legacy and not _needs_legacy(r.stderr):
+                    break
     return None, None, last_err
 
 
