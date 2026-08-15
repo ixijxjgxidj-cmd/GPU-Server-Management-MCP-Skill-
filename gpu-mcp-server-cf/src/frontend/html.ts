@@ -89,7 +89,8 @@ export const HTML = `<!DOCTYPE html>
       font-size: 14px; color: var(--text-dim); border-bottom: 1px solid rgba(255,255,255,0.03);
     }
     .card .info-row:last-of-type { border-bottom: none; }
-    .card .info-row span:last-child { color: var(--text); font-weight: 500; text-align: right; }
+    .card .info-row span:first-child { flex-shrink: 0; margin-right: 12px; }
+    .card .info-row span:last-child { color: var(--text); font-weight: 500; text-align: right; overflow-wrap: anywhere; word-break: break-word; max-width: 85%; }
     
     .card .util-bar { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; flex: 1; margin: 0 12px; }
     .card .util-fill { height: 100%; border-radius: 3px; transition: width 0.3s ease; }
@@ -1036,8 +1037,8 @@ export const HTML = `<!DOCTYPE html>
         // Title
         const titleDiv = document.createElement('div');
         titleDiv.className = 'title';
-        titleDiv.innerHTML = '<span>' + tm.icon + ' <b style="color:var(--text)">' + escHtml(b.summary) + '</b></span>' +
-          '<span style="font-size:12px;padding:3px 8px;border-radius:6px;background:' + tm.bg + ';color:' + tm.color + ';font-weight:600">' + tm.label + (b.score ? ' · 匹配 ' + b.score + '分' : '') + '</span>';
+        titleDiv.innerHTML = '<span style="display:flex;align-items:flex-start;gap:8px;word-break:break-word;padding-right:12px;">' + tm.icon + ' <b style="color:var(--text);line-height:1.4;">' + escHtml(b.summary) + '</b></span>' +
+          '<span style="font-size:12px;padding:3px 8px;border-radius:6px;background:' + tm.bg + ';color:' + tm.color + ';font-weight:600;flex-shrink:0;">' + tm.label + (b.score ? ' · 匹配 ' + b.score + '分' : '') + '</span>';
         card.appendChild(titleDiv);
 
         // Info rows

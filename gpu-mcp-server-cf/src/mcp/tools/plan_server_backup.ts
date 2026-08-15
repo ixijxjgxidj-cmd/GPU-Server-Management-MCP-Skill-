@@ -45,7 +45,7 @@ export const planServerBackupTool: McpTool = {
     const pad = (n: number) => n.toString().padStart(2, '0');
     const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
     const folderName = `${timestamp}_${sessionName}_${summary}`;
-    const localFolder = `severs_datas/${folderName}`;
+    const localFolder = `server_backups/${folderName}`;
 
     // =========================================================================
     // 核心决策：计算物理服务器剩余存活时间 (Physical Lease vs Task Outputs)
@@ -73,7 +73,7 @@ export const planServerBackupTool: McpTool = {
     // 顺位 1：Google Drive 挂载备份
     // ==========================================
     if (hasGDrive) {
-      const gdriveRemotePath = `/content/drive/MyDrive/severs_datas/${folderName}`;
+      const gdriveRemotePath = `/content/drive/MyDrive/server_backups/${folderName}`;
       const indexJson = {
         backup_type: isPhysicalExpiringSoon ? 'google_drive_full_evacuation' : 'google_drive_experiment_outputs',
         strategy_mode: strategyMode,
@@ -154,7 +154,7 @@ ${JSON.stringify(indexJson, null, 2)}
       // 顺位 2：集群其他服务器中转与存储
       // ==========================================
       if (peerServer) {
-        const peerRemoteDir = `/data/severs_datas/${folderName}`;
+        const peerRemoteDir = `/data/server_backups/${folderName}`;
         const peerConnectCmd = peerServer.connection_type === 'cloudflare_tunnel'
           ? `ssh -o ProxyCommand="cloudflared access ssh --hostname %h" ${peerServer.username}@${peerServer.host}`
           : `ssh ${peerServer.username}@${peerServer.host} -p ${peerServer.port}`;
@@ -212,7 +212,7 @@ ${JSON.stringify(indexJson, null, 2)}
         planMarkdown = `### 🔄 【第 2 顺位】集群服务器中转备份方案
 
 ${decisionBanner}
-> 数据优先传输至对端服务器 **${peerServer.name}** (${peerServer.host}) 存储，本地 \`severs_datas\` **仅留存：服务器地址 + 连接方法 + 文件数据索引**。
+> 数据优先传输至对端服务器 **${peerServer.name}** (${peerServer.host}) 存储，本地 \`server_backups\` **仅留存：服务器地址 + 连接方法 + 文件数据索引**。
 > **RAG 向量索引**：已自动以源机 IP (\`${server.host}\`) 锚定上传至 MCP 数据库。
 
 1. **在源服务器执行数据同步至对端服务器**：
