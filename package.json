@@ -1,5 +1,25 @@
 {
-  "dependencies": {
-    "ssh2": "^1.17.0"
-  }
+  "name": "gpu-server-management-mcp-skill",
+  "version": "1.0.0",
+  "description": "Serverless GPU Cluster Orchestrator, Collective Memory & Troubleshooting RAG Protocol for AI Agents",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix gpu-mcp-server-cf run dev",
+    "deploy": "npm --prefix gpu-mcp-server-cf run deploy",
+    "deploy:auto": "npm --prefix gpu-mcp-server-cf run deploy",
+    "migrate": "npm --prefix gpu-mcp-server-cf run migrate",
+    "test": "npm --prefix gpu-mcp-server-cf test",
+    "typecheck": "npm --prefix gpu-mcp-server-cf run types"
+  },
+  "keywords": [
+    "mcp",
+    "gpu",
+    "cloudflare-workers",
+    "ai-agents",
+    "antigravity",
+    "claude-code",
+    "codex",
+    "deepseek-harness"
+  ],
+  "license": "MIT"
 }

@@ -1,26 +1,28 @@
 ---
 name: gpu-server-management
-description: Use when you need a GPU server to train, infer, or run any compute task — to connect to one, claim and release tasks with countdown timers, track server physical remaining lifespan, trigger intelligent dual-mode backups (outputs-only vs. full evacuation) with cloud RAG vector indexing, query cached data via query_backup_index / everything-mcp and Dataset Affinity, borrow disk from another machine, or route around a slow or blocked network. Also use when registering a server you just configured, or when an SSH connection to a known server fails.
+description: Use when you need a GPU server to train, infer, or run any compute task — to connect to one, claim and release tasks with countdown timers, track server physical remaining lifespan, execute the 6-step Server Download Strategy (Workers RAG -> anysearch/Cloudflare browser -> Direct vs Multi-Proxy speed benchmark & dynamic race -> Multi-Proxy chunk-aggregated downloading for >500MB -> local machine fallback upload -> register_dataset), query the unified Troubleshooting RAG knowledge base upon encountering ANY issue or error (query_troubleshooting), record and query server-specific pitfalls and caveats (record_pitfall / remove_pitfall / pitfalls memory in get_servers), import/manage Clash & V2Ray proxy subscriptions via import_proxy_subscription, trigger intelligent dual-mode backups (outputs-only vs. full evacuation) with cloud RAG vector indexing, query cached data via query_backup_index / everything-mcp and Dataset Affinity, borrow disk from another machine, or route around a slow or blocked network. Also use when registering a server you just configured, or when an SSH connection to a known server fails.
 ---
 
-# GPU Server Management
+# GPU Server Management & Next-Gen Proxy Orchestration
 
-A shared registry that lets you **drive many remote machines as one pool**. The database is
-**collective memory**: what one agent configures and records, every later agent reads back — so
-setup work is never repeated and machines cooperate instead of being used one at a time.
+A shared registry and high-performance multi-proxy orchestration engine that lets you **drive many remote GPU machines as one pool**. The database is **collective memory**: what one agent configures, discovers, or encounters (including pitfalls, troubleshooting workarounds, and server notes), every later agent reads back — so setup work is never repeated and machines cooperate seamlessly.
 
 **What this unlocks — the reason to reach for these tools:**
 
 | Goal | Tool | In one line |
 |------|------|-------------|
+| **遇错优先查询·RAG 问题库** | `query_troubleshooting { query }` | **【遇到报错第一顺位调用】** 秒级语义检索全集群所有踩坑经验 (pitfalls)、节点备忘 (notes) 与备份索引，返回已验证的解决方案与执行命令。 |
 | **Dual Timers: Lease & Task** | `get_servers` / `claim_server` | Tracks 2 distinct timers: 1. Server physical lifespan remaining (`server_expires_at`) vs. 2. Task countdown lease (`duration_minutes`). |
+| **Server Pitfalls & Caveats (踩坑与避坑记忆)** | `record_pitfall` / `get_servers` | Records environment traps, PyTorch/CUDA conflicts, OOM mitigations, and network quirks per server, auto-returned on every `get_servers` call. |
+| **Clash & V2Ray Subscriptions** | `import_proxy_subscription` | Auto-fetches and parses Clash YAML / Base64 subscriptions, batch-populating proxy nodes with region tags (HK/JP/US/SG). |
+| **Domain-Aware Routing & Racing** | `plan_network_relay` | Domain profiling (HuggingFace / GitHub / S3) + Direct vs Multi-Proxy concurrent Range benchmark (哪个快选哪个). |
+| **Multi-Proxy Chunk Aggregator** | `plan_network_relay` | For >500MB large weights/datasets, splits into 64MB chunks across multiple proxies in parallel with auto-failover and resume. |
 | **Intelligent Dual-Mode Backup** | `plan_server_backup` | Physical remaining > 1h: only backup experiment outputs (exclude datasets to keep affinity); Physical remaining <= 1h: full asset evacuation. |
 | **RAG Vector Search for Backups** | `query_backup_index` | Semantic natural-language / keyword RAG search across all historical checkpoints and backups (IP lifecycle-bound). |
 | **Dataset Affinity (数据就近计算)** | `plan_task_allocation { preferred_datasets }` | Route jobs directly to nodes with pre-cached datasets (+100k score boost), avoiding huge network downloads. |
 | **Manage Datasets** | `register_dataset` / `remove_dataset` | Record dataset paths & sizes so subsequent agents reuse local data paths without re-downloading. |
 | **Borrow disk** | `plan_disk_share` | Mount a disk-rich machine onto one that ran out of space (turn a peer into a cloud disk). |
-| **Route around a bad network** | `plan_network_relay` | Accelerate a slow/blocked download through a proxy, or relay the file via a healthy server. |
-| **Teach the next agent** | `upsert_server { notes_entry }` | Write back what you set up (global proxy, CUDA env, mounts) so the next call returns it. |
+| **Unified Proxy Environment** | `plan_network_relay` | One-shot script (`proxy_env.sh`) wrapping Shell, Git, Pip, Python, and HuggingFace fast transfer variables. |
 
 ---
 
@@ -28,7 +30,7 @@ setup work is never repeated and machines cooperate instead of being used one at
 
 Every task session on a GPU machine MUST follow this 5-step loop:
 
-1. **Read the pool & Dual Timers**: `get_servers` → check online status, free resources, `current_task` (is it busy?), `datasets`, and **`server_remaining_minutes` (物理剩余时间)** vs. **`task_remaining_minutes` (任务倒计时)**.
+1. **Read the pool, Pitfalls & Dual Timers**: `get_servers` → check online status, free resources, `current_task` (is it busy?), `datasets`, **`pitfalls` (必须查阅前人沉淀的避坑指南与环境陷阱)**, and **`server_remaining_minutes` (物理剩余时间)** vs. **`task_remaining_minutes` (任务倒计时)**.
 2. **Claim with optional Countdown**: 
    ```yaml
    claim_server {
@@ -38,15 +40,41 @@ Every task session on a GPU machine MUST follow this 5-step loop:
      duration_minutes: 60  # 任务倒计时分钟数。不填或为 0 则不限时
    }
    ```
-3. **Workspace Setup & Execution (工作区隔离与执行)**:
-   - **必做前提**：连接到新服务器或开启新任务时，**必须首先创建专用隔离工作区**，命名规范为：
-     `{session_name}_{agent_name}_{YYYYMMDD_HHMMSS}`
+3. **Project Folder Creation, Global Environment & Shared Assets Hierarchy (新建项目文件夹、全局环境安装与公共资产管理)**:
+   - **📁【新建项目文件夹 (实验专属隔离)】**：每次调用服务器做一次实验，**必须首先建立一个专属项目文件夹**：
+     `~/projects/{project_name}_{YYYYMMDD_HHMMSS}/`
      ```bash
-     # 例如：
-     mkdir -p ~/workspace/train_lora_antigravity_20260815_140200
-     cd ~/workspace/train_lora_antigravity_20260815_140200
+     mkdir -p ~/projects/train_lora_20260815_140200/src ~/projects/train_lora_20260815_140200/output ~/projects/train_lora_20260815_140200/logs
+     cd ~/projects/train_lora_20260815_140200
      ```
-   - **严格红线**：后续所有的代码拉取、环境运行、检查点输出、权重保存及中间过程文件，**必须全部且严格在该文件夹内部进行**，严禁在 `~` 或系统根目录散落文件，确保会话/Agent 间空间绝对隔离。
+     - **边界与规范**：本次实验专属的业务工程代码、执行脚本、训练 checkpoint、评测日志及指标产出，**全部保存在该项目文件夹内部**。
+   - **🌐【环境依赖全局生效 (严禁重复建 venv / 重复重装)】**：
+     - Python 依赖包与环境**应当全局安装生效**（如系统环境通过 `pip install --break-system-packages`，或主 Conda 环境 `base` 全局安装）；
+     - **严禁在每个实验项目文件夹里重复创建 `.venv` 和反复重装大依赖**，确保一次安装、全机所有后续实验与不同 Agent 永久直接复用！
+   - **📦【公共数据集与模型权重独立全局存储】**：
+     - 下载的大型数据集与基座模型权重必须存放于**单独的全局共享目录**：
+       - 数据集全局目录：`~/shared/datasets/<dataset_name>/`（下载后立即调用 `register_dataset` 登记至集群记忆）
+       - 模型权重全局目录：`~/shared/models/<model_name>/` 或 HuggingFace 默认全局缓存 `~/.cache/huggingface/`
+     - 实验代码通过绝对路径或软链接直接引用全局数据集与基座模型，绝不把巨型数据和权重塞进单次实验的项目文件夹！
+   - **🔍【环境就地探测与差异清单排查】**：
+     1. **探测已有环境**：登录后首先探查已有的全局环境：
+        ```bash
+        which python3; which conda; nvidia-smi
+        python3 -c "import torch; print(torch.__version__, 'CUDA:', torch.cuda.is_available())"
+        pip list
+        ```
+     2. **列出缺失清单 (Diff)**：对照任务需求，**精准仅列出服务器当前真正缺失的依赖包**，已有可用依赖坚决不重复重装！
+     3. **最优增量安装**：针对缺失依赖，对比直连国内镜像源 (清华/中科大/阿里) 与服务器本机本地代理 (/etc/profile.d/00-proxy.sh) 测速，全局增量安装 (`pip install --break-system-packages <pkg>`)。
+   - **⚠️ 遇到新坑立即沉淀**：若在配置环境、运行代码、驱动调用、网络拉取或挂载时遇到特殊报错/版本冲突并摸索出避坑方法，**必须立即调用 `record_pitfall` 将其永久固化进集体记忆**：
+     ```yaml
+     record_pitfall {
+       server_id: "...",
+       title: "PyTorch 2.4 与 CUDA 12.1 驱动不兼容导致的 Segfault",
+       description: "直接使用 pip install torch 默认安装 2.4 会触发 cuda runtime crash",
+       workaround: "pip install torch==2.3.1+cu121 --extra-index-url https://download.pytorch.org/whl/cu121 --break-system-packages",
+       severity: "critical"
+     }
+     ```
 4. **Data Backup Protocol & Cloud RAG Indexing (`plan_server_backup`)**:
    - 当任务执行完毕或任务倒计时到期时，系统根据**物理服务器剩余存活时间**智能决策备份范围：
    ```yaml
@@ -55,7 +83,7 @@ Every task session on a GPU machine MUST follow this 5-step loop:
      session_name: "train_lora",
      summary: "checkpoint_epoch5",
      has_google_drive: true,        # 源服务器是否挂载 Google Drive
-     remote_data_dir: "~/workspace/train_lora_antigravity_20260815_140200/output",
+     remote_data_dir: "~/projects/train_lora_20260815_140200/output",
      data_purpose: "用于阶段性评估与部署",
      data_usage_status: "已完成 5 轮训练，验证集 loss 0.18"
    }
@@ -73,49 +101,122 @@ Every task session on a GPU machine MUST follow this 5-step loop:
 
 ---
 
-## 🔍 数据检索与复用三级决策树 (Data Retrieval Hierarchy)
+## 📥 服务器下载与数据获取全流程策略 (Server Download Strategy)
 
-后续任何 Agent 需要某份数据、模型权重或检查点时，必须遵循以下 **三级检索优先级**：
+> 🔒 **【核心边界与 SOCKS5 专用铁律】**：  
+> 集群 SOCKS5 代理池 (`reachable_proxies` / `proxy_acceleration.ready_to_use_commands.ssh_proxy_jump`) **仅专门用于 SSH 跳板连接与端口穿透**。  
+> **严禁将 SOCKS5 代理池用于任何服务器下载、pip 安装或数据集拉取任务！**  
+> 下载测速对比仅限于：**直连/国内镜像源** vs **服务器本机已配置好的本地代理环境 (如本机 127.0.0.1 代理或 /etc/profile.d/00-proxy.sh)**。
+
+当服务器需要下载任何外部资源（数据集、模型权重、依赖包、源码或配置）时，所有 Agent **必须严格按以下递进策略执行**：
 
 ```
-[任务需要数据/模型权重]
+[服务器需要下载/获取资源]
        │
        ▼
-【第 1 优先级：云端 RAG 向量索引 (query_backup_index) 与 本地备份目录检索 (everything-mcp)】
-  调用 query_backup_index { query: "自然语言描述/指标/关键词" } 或 everything-mcp 搜索本地 severs_datas
+【第 1 步：检索 Workers RAG 数据池与集群已有缓存】
+  1. 调用 query_backup_index { query: "自然语言描述/指标/数据集名" } 检索 Cloudflare Workers 上的 RAG 向量池
+  2. 调用 get_servers 查看各节点的 datasets 目录与本地缓存
+  ├─► 命中 Google Drive 备份: 直接从云盘提取
+  ├─► 命中对端机器中转备份/已有 datasets 缓存:
+  │    直接利用已有数据，或在 plan_task_allocation 中利用 Dataset Affinity (+10万分) 调度到该节点
+  └─► 命中本地备份核心文件: 直接 scp 上传
+       │ (未命中任何已有数据)
+       ▼
+【第 2 步：网络检索获取真实下载直链】
+  使用网络检索工具 (anysearch / search_web / Cloudflare Browser rendering) 
+  在 HuggingFace / ModelScope / GitHub / 官方开源源中检索获取文件的真实下载直链 (Direct URL)
+       │ (获取到直链)
+       ▼
+【第 3 步：直连 vs. 服务器本机已配置代理 并发测速竞速 (哪个快选哪个)】
+  • 运行并发测速脚本，对【直连镜像通道 (如 USTC/清华/阿里)】与【服务器本机已配本地出海代理】同时进行 3-5 秒 Range 请求测速：
+    - 直连测速: curl -s -w "%{speed_download}" -o /dev/null --max-time 8 "<URL>"
+    - 本地代理测速: curl -x "$LOCAL_SERVER_PROXY" -s -w "%{speed_download}" -o /dev/null --max-time 8 "<URL>"
+  • 动态竞速裁决 (哪个快选哪个)：
+    ├─► 直连速度更快 (或直连 >= 本地代理): 
+    │    采用直连通道极速下载：aria2c -s 16 -x 16 "<URL>" || wget "<URL>"
+    └─► 服务器本机代理更快:
+         自动导出服务器本机代理并加速下载：
+         source /etc/profile.d/00-proxy.sh (或 export http_proxy="http://127.0.0.1:10809")
+         aria2c -s 16 -x 16 "<URL>"
        │
-       ├─► 命中 Google Drive 备份:
-       │    直接从 Google Drive 挂载/提取数据到目标机
+       ├─► 中小文件顺利完成 ──► 前往【第 6 步：就地登记】
        │
-       ├─► 命中对端服务器中转备份:
-       │    直接根据索引中的【服务器地址 + 连接方法】前往目标节点读取，
-       │    或在 plan_task_allocation 中利用 Dataset Affinity (+10万分) 调度到该节点
+       ▼ (大型模型权重/超大数据集 >500MB 或 需多通道聚合)
+【第 4 步：多通道分片并发聚合拉取 (Multi-Proxy Chunk Aggregator)】
+  • 执行 multi_proxy_downloader.py：
+    python3 multi_proxy_downloader.py "<URL>"
+  • 机制：利用 curl -r 原生分片多线程拉取，自动断点续传与合并校验。
        │
-       ├─► 命中本地备份核心权重文件:
-       │    直接使用本地数据，或 scp/rsync 上传至目标机
+       ├─► 分片聚合拉取完成 ──► 前往【第 6 步：就地登记】
        │
-       ▼ (未命中历史备份)
-【第 2 优先级：集群服务器已有缓存 (高权重调度)】
-  调用 get_servers 查看各节点的 datasets 目录与 notes_entries
+       ▼ (网络检索不到直链 / 需本地私有凭据 / 外网全阻断)
+【第 5 步：本地物理机下载并中转上传 (保底机制)】
+  若公网无法检索或受网络隔离限制，在本地物理机完成下载/准备后，
+  通过 scp / rsync 直接上传至服务器的共享目录或项目文件夹：
+  scp -P <port> ./local_file <user>@<host>:~/shared/datasets/ (或 ~/projects/{project}_{time}/)
        │
-       ├─► 某服务器已缓存该数据:
-       │    该节点调度权重最高 (plan_task_allocation 自动 +100,000 分 Dataset Affinity)
-       │    直接调度任务到该服务器上执行，零数据拉取时间
-       │
-       ▼ (全池均无该数据)
-【第 3 优先级：全池无数据 (低权重调度 + 远程拉取)】
-  调度权重最低，使用 plan_network_relay 加速下载至目标服务器，
-  并在下载后立即调用 register_dataset 登记该数据集
+       ▼
+【第 6 步：必须执行·数据集就地登记 (register_dataset)】
+  任何途径成功下载/获取数据集后，必须立即调用：
+  register_dataset { server_id, name: "<数据集名称>", path: "<绝对路径>", size_gb: <大小> }
+  将数据登记进集体记忆，以便后续任务复用并享受 Dataset Affinity 亲和调度！
 ```
 
 ---
 
-## 🛠 18 Tools in 4 Layers
+## 🚨 遇错排查第一顺位：RAG 问题库查询 SOP (Query Troubleshooting First)
 
-### Layer 1 — Connect & Lifecycle (the default flow)
+在 GPU 服务器上执行任何任务时（无论配置环境、运行代码、下载模型、安装依赖或进行网络代理），**只要遇到任何报错、异常中断或未知问题，必须严格执行以下排错 SOP**：
+
+```
+[在服务器遇到报错 / 异常 / 冲突 / 阻断]
+                    │
+                    ▼
+【第 1 步：强制第一顺位调用 MCP RAG 问题库】
+  严禁盲目尝试或猜测修复！
+  必须立即调用 query_troubleshooting 工具进行跨服务器语义检索：
+  query_troubleshooting {
+    query: "<将终端关键报错信息、异常日志、组件名复制作为 query>"
+  }
+  • 系统将聚合全集群：
+    1. server_pitfalls (历史所有已验证的避坑指南与具体修复命令)
+    2. servers.notes & server_notes (机器特有环境/容器限制/挂载/网络备忘)
+    3. backup_indexes (数据集与实验产出路径)
+                    │
+                    ▼
+【第 2 步：匹配度判定与直接采纳】
+  ├─► 命中高匹配条目 (Score 显著):
+  │    直接执行 proven_workaround_or_solution 中给出的已验证方案与命令！
+  │    (避免重复排错耗时，秒级恢复生产)
+  └─► 未命中任何历史条目 (全新未知问题):
+       继续进行技术排查与网络检索 (search_web / anysearch)，直至问题彻底解决。
+                    │
+                    ▼
+【第 3 步：解决后立即沉淀集体记忆】
+  一旦探明原因并解决全新问题，必须立即调用：
+  record_pitfall {
+    server_id: "<当前服务器 ID>",
+    title: "<简述报错与问题核心>",
+    description: "<详细现象、触发场景与错误日志>",
+    workaround: "<经实测验证的正确解决命令与避坑配置>",
+    severity: "critical" | "warning" | "info"
+  }
+  将避坑方案永久写入集体记忆库，后续任何 Agent 遇错查询均可直接受益！
+```
+
+---
+
+## 🛠 22 Tools in 4 Layers
+
+### Layer 1 — Connect, Troubleshooting & Lifecycle (the default flow)
 
 ```yaml
-get_servers {}                                                   # all online servers + current tasks + dual timers
+# 1. 遇到任何报错第一顺位调用
+query_troubleshooting { query: "CUDA out of memory in DataLoader" }
+
+# 2. 查询服务器资源与自包含连接信息
+get_servers {}                                                   # all online servers + pitfalls + current tasks + dual timers
 get_servers { gpu_model: "NVIDIA A100", min_gpu_memory_gb: 40 }  # filtered
 get_servers { include_offline: true }                            # also unreachable ones
 ```
@@ -124,38 +225,47 @@ One call returns everything needed to SSH in: `host`, `port`, `username`, `auth_
 `key_path`, `key_content_b64`, `password`, `connection_mode_label`, hardware, live load,
 `server_expires_at`, `server_remaining_minutes`, `is_server_expiring_soon`,
 `current_task`, `current_agent`, `task_started_at`, `task_duration_minutes`, `task_expires_at`, `task_remaining_minutes`, `is_task_expired`,
-`datasets` (pre-cached data with absolute paths), `notes_entries`, `reachable_proxies`, plus a `how_to_connect` string.
+`datasets` (pre-cached data with absolute paths), **`pitfalls`** (全套避坑经验列表: title, description, workaround, severity, agent), `pitfalls_count`,
+`notes_entries`, `reachable_proxies`,
+plus **`proxy_acceleration`** (遇到需要代理时自动返回的极速套件：`best_proxy` 最低延迟代理、`ready_to_use_commands.ssh_proxy_jump` SSH跳板命令、`ready_to_use_commands.shell_env_export` 环境变量接管、`git_proxy`、`pip_proxy`、`hf_fast_transfer`) 和 `how_to_connect` 字符串。无需手动拼接代理或查找节点，直接执行返回的命令即可！
 
-### Layer 2 — Orchestrate multiple servers & Backups
+### Layer 2 — Orchestrate multiple servers, Troubleshooting & Next-Gen Proxies
 
 | Need | Tool | Returns |
 |------|------|---------|
+| **遇错优先排错查询 (RAG)** | `query_troubleshooting { query, server_id?, category?, limit? }` | 聚合全集群 pitfalls、notes 与备份的语义 RAG 排错结果，秒级返回已验证的解决方案与执行命令。 |
 | Start a task / claim server | `claim_server { server_id, agent, task, duration_minutes? }` | Marks server occupied, sets countdown lease if specified. |
 | Finish a task / release server | `release_server { server_id, agent?, task_done?, note? }` | Clears occupancy and lease so server becomes idle again. |
+| Record / sync a pitfall caveat | `record_pitfall { server_id, title, description, workaround, severity? }` | Persists environment traps, PyTorch/CUDA issues, and exact fix commands into collective memory, auto-returned to all agents. |
+| Remove obsolete pitfall | `remove_pitfall { pitfall_id }` | Removes outdated/resolved pitfall from collective memory. |
+| Import Clash/V2Ray Subscription | `import_proxy_subscription { url, name?, raw_content? }` | Auto-parses Clash YAML/Base64 nodes, batch populating proxy table with region detection. |
 | Plan intelligent backup | `plan_server_backup { server_id, session_name, summary, ... }` | Auto-decides outputs-only vs full-evacuation based on physical server lifespan >1h vs <=1h. Auto-syncs to MCP RAG DB. |
 | RAG query backup indexes | `query_backup_index { query, backup_type?, server_host?, limit? }` | Semantic RAG ranking of all historical backups across cluster with remote paths, peer IP, connection commands, and match reasons. |
+| Download & network relay | `plan_network_relay { target_server_id, resource_url }` | Outputs target domain profile, Direct vs Proxy speed benchmark script, Multi-Proxy Chunk Aggregator python script, Unified proxy env wrapper, and local upload fallback. |
 | Spread N tasks over machines | `plan_task_allocation { tasks: [{ id, gpu_count, min_gpu_memory_gb, min_ram_gb, min_disk_gb, min_cpu_cores, preferred_datasets: ["name"] }] }` | `recommended_allocation` table, `candidates_per_task` (ranked fallbacks with affinity indicators), `unassignable` with reasons, `stale_warnings` |
 | Register a downloaded/mounted dataset | `register_dataset { server_id, name, path, size_gb? }` | Confirmation message. Adds to the server's dataset catalog for affinity routing. |
 | Remove an unmounted/deleted dataset | `remove_dataset { server_id, name }` | Confirmation message. Removes dataset from catalog. |
 | A machine is out of disk | `plan_disk_share { needy_server_id, need_gb, mode: "sshfs"\|"nfs"\|"both" }` | disk-rich reachable provider + mount commands |
-| A machine's network is slow or blocked | `plan_network_relay { target_server_id, resource_url }` | proxy-acceleration commands and/or jump-relay steps |
 | Load data is stale | `refresh_load { server_ids? }` | per-server probe commands + credentials |
 
 ### Layer 3 — Registry & Memory
 
 | Tool | When |
 |------|------|
+| `query_troubleshooting` | **遇错排查第一顺位**：语义检索所有踩坑、备注与备份。 |
 | `claim_server` / `release_server` | Task lifecycle state transitions (busy <-> idle). |
+| `record_pitfall` / `remove_pitfall` | Collective memory management for caveats, environment quirks, and fix workarounds. |
+| `import_proxy_subscription` | Ingest and refresh proxy subscriptions. |
 | `upsert_server { host, ... }` | Register or update in one call, keyed by `host`. New servers also require `name`, `username`, `auth_method`. Pass `key_content` as **plaintext PEM** (the server base64-encodes it on read). |
 | `register_dataset` / `remove_dataset` | Manage pre-cached datasets and directories on servers for Dataset Affinity. |
-| `update_server { server_id, updates }` | Change fields by ID, including `enabled` (`1` visible / `0` hidden) and `server_expires_at`. |
-| `remove_server` / `verify_server_connectivity` | Management and diagnostics (removing a server automatically cleans up all associated backup indexes by IP). |
+| `update_server` / `remove_server` | Change fields or delete servers (deletion cascades to all backup indexes by IP). |
 
 ---
 
 ## 🔒 Security & Cleanup Discipline
 
-- **Dedicated Isolated Workspaces**: Always `mkdir -p ~/workspace/{session}_{agent}_{time}` upon SSH connection. Keep all files strictly inside this folder.
+- **Dedicated Project Folders**: Always `mkdir -p ~/projects/{project_name}_{YYYYMMDD_HHMMSS}/` upon SSH connection. Keep experiment-specific code, configs, logs, and outputs strictly inside this folder.
+- **Global Environment & Shared Storage**: Install Python dependencies globally for permanent cross-experiment reuse; store large datasets in `~/shared/datasets/` and model weights in `~/shared/models/`.
 - **Dual-Timer Awareness**: Always monitor `server_remaining_minutes` (物理存活剩余) vs `task_remaining_minutes` (任务倒计时). If server physical lifespan <= 60 min, execute full evacuation backup immediately.
 - **Always Backup & Release**: Never leave a server claimed after a task finishes or errors out. Always run `plan_server_backup` (if data produced) followed by `release_server`.
 - **IP-Bound Memory**: All backup indexes are tied to server IP. Deleting a server automatically purges its backup index from RAG memory.

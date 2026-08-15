@@ -1,25 +1,25 @@
-# DSH skills
-.dsh/
+# Cloudflare & Node
+node_modules/
+.wrangler/
+dist/
 
-# SDD workspace
+# Scratch & Design artifacts
 .superpowers/
-
-# Design docs
 docs/
 
-# Node
-node_modules/
-
-# Env
+# Environment & Secrets (Never commit secrets)
 .env
-.env.local
+.env.*
+!.env.example
+.dev.vars
+*.pem
+*.key
+*.id_rsa
 
-# IDE
+# OS & Editor
+.DS_Store
+Thumbs.db
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# OS
-.DS_Store
-Thumbs.db

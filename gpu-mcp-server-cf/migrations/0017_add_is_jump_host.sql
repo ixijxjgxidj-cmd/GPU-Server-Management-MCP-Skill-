@@ -1,0 +1,2 @@
+-- Migration number: 0017 	 2026-08-15T20:10:00.000Z
+ALTER TABLE servers ADD COLUMN is_jump_host INTEGER NOT NULL DEFAULT 0;
