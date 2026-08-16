@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "gpu-mcp-server-cf": {
+      "type": "http",
+      "url": "https://gpu-mcp-server-cf.hulkcheng0806.workers.dev/mcp"
+    },
+    "dsh-mcp-server": {
+      "type": "http",
+      "url": "https://dsh-mcp-server.hulkcheng0806.workers.dev/mcp"
+    },
+    "anysearch": {
+      "type": "http",
+      "url": "https://api.anysearch.com/mcp",
+      "headers": {
+        "Authorization": "Bearer as_sk_ea6d1f7013a3d46ab63fb17108b44426"
+      }
+    },
+    "cloudflare-browser": {
+      "type": "http",
+      "url": "https://browser.mcp.cloudflare.com/mcp"
+    }
+  }
+}
