@@ -2,7 +2,7 @@
 
 > **Applicable Agents**: Antigravity, Claude Code, OpenAI Codex, Cursor, Windsurf, OpenCodeInterpreter  
 > **Backend Service**: `gpu-mcp-server-cf`  
-> **Skill**: `gpu-server-management`
+> **Skills**: `gpu-server-management`, `cn-proxy-client`
 
 ---
 
@@ -30,3 +30,8 @@
 5. **Honor Countdown Leases & Release Early**:
    - Always specify `duration_minutes` when calling `claim_server`.
    - Always call `release_server` as soon as the compute workload finishes.
+6. **Deploying & Managing Outbound Proxies (`cn-proxy-client`)**:
+   - When deploying or restoring sing-box proxies on rented CN GPU boxes (Deepln, VirtaiCloud, SCNet ZZAI, etc.), activate the `cn-proxy-client` skill.
+   - Never route data paths through the local Windows machine; use remote relay (`tor1`) or direct dialing.
+   - Upon completing proxy deployment, always call `update_server` and `upsert_server`'s `notes_entry` to register `v2ray_available: 1`, tags, and usage into collective memory to instantly unlock Google Drive integration!
+
