@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "gpu-mcp-server-cf": {
+      "type": "http",
+      "url": "https://gpu-mcp-server-cf.hulkcheng0806.workers.dev/mcp",
+      "timeoutMs": 60000
+    },
+    "dsh-mcp-server": {
+      "type": "http",
+      "url": "https://dsh-mcp-server.hulkcheng0806.workers.dev/mcp",
+      "timeoutMs": 60000
+    },
+    "anysearch": {
+      "type": "http",
+      "url": "https://api.anysearch.com/mcp",
+      "timeoutMs": 60000
+    },
+    "cloudflare-browser": {
+      "type": "http",
+      "url": "https://browser.mcp.cloudflare.com/mcp",
+      "timeoutMs": 60000
+    }
+  }
+}
