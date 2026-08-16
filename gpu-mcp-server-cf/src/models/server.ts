@@ -261,26 +261,10 @@ export function detectLocalProxy(s: {
     }
   }
 
-  // Parse actual ports from notes if present
-  let httpPort = hasClash ? 7890 : 10809;
-  let socksPort = hasClash ? 7890 : 10808;
-
-  const httpMatch = rawNotes.match(/(?:http|http_proxy|127\.0\.0\.1:?)[:\s/]*(\d{4,5})/i);
-  if (httpMatch && httpMatch[1]) {
-    const parsed = parseInt(httpMatch[1], 10);
-    if (parsed >= 1080 && parsed <= 65535 && parsed !== 8881 && parsed !== 44438 && parsed !== 55696 && parsed !== 40037 && parsed !== 10683 && parsed !== 30022) {
-      httpPort = parsed;
-    }
-  }
-
-  const socksMatch = rawNotes.match(/(?:socks|socks5|all_proxy)[:\s/]*(\d{4,5})/i);
-  if (socksMatch && socksMatch[1]) {
-    const parsed = parseInt(socksMatch[1], 10);
-    if (parsed >= 1080 && parsed <= 65535 && parsed !== 8881 && parsed !== 44438 && parsed !== 55696 && parsed !== 40037 && parsed !== 10683 && parsed !== 30022) {
-      socksPort = parsed;
-    }
-  }
-
+  // Standard sing-box outbound ports: HTTP 10809, SOCKS5 10808
+  // Note: 10829 is an SSH local-forwarding tunnel port and MUST NEVER be used as the sing-box direct proxy.
+  const httpPort = hasClash ? 7890 : 10809;
+  const socksPort = hasClash ? 7890 : 10808;
   const proxyUrl = `http://127.0.0.1:${httpPort}`;
 
   if (hasSingBox) {
