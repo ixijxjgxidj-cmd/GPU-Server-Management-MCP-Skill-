@@ -9,6 +9,7 @@ import usageApi from './api/usage';
 import aiApi from './api/ai';
 import bridgeApi from './api/bridge';
 import knowledgeApi from './api/knowledge';
+import gdriveApi from './api/gdrive';
 import { HTML as frontendHtml } from './frontend/html';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -46,6 +47,7 @@ app.route('/api/usage', usageApi);
 app.route('/api/ai', aiApi);
 app.route('/api/bridge', bridgeApi);
 app.route('/api/knowledge', knowledgeApi);
+app.route('/api/gdrive', gdriveApi);
 
 // === Frontend ===
 app.get('/', (c) => {

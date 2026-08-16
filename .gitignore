@@ -16,10 +16,7 @@ docs/
 *.key
 *.id_rsa
 
-# OS & Editor
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
-*.swp
-*.swo
+# Scratch & temporary scripts
+.tmp_*
+severs_datas/
+

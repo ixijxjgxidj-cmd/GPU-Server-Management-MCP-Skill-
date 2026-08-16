@@ -250,6 +250,7 @@ export const HTML = `<!DOCTYPE html>
     <button onclick="switchPage('servers')" id="nav-servers" class="active">🖥️ 服务器</button>
     <button onclick="switchPage('knowledge')" id="nav-knowledge">🧠 知识库 (RAG)</button>
     <button onclick="switchPage('datasets')" id="nav-datasets">📦 数据集与预存</button>
+    <button onclick="switchPage('gdrive')" id="nav-gdrive">📁 云盘存储 (Drive)</button>
     <button onclick="switchPage('proxies')" id="nav-proxies">🌐 代理池</button>
     <button onclick="switchPage('logs')" id="nav-logs">📋 使用记录</button>
     <button onclick="openNimConfigModal()" id="nav-nim-btn" style="margin-left:auto;display:flex;align-items:center;gap:8px;padding:6px 14px;border-radius:8px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:#34d399;font-weight:600;font-size:13px;cursor:pointer;transition:all 0.2s ease;">
@@ -433,6 +434,53 @@ export const HTML = `<!DOCTYPE html>
       </table>
     </div>
   </div>
+  <div id="page-gdrive" class="page" style="display:none">
+    <div class="header">
+      <div>
+        <h1 style="font-size:22px;letter-spacing:-0.02em;font-weight:600;margin:0 0 4px">Google Drive 云端存储</h1>
+        <div style="font-size:13px;color:#888" id="gdriveAccountSubtitle">实时浏览与检索云端模型权重、检查点及实验产物</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <input class="search-input" id="gdriveSearchInput" placeholder="检索文件/权重 (如 best.pt, ceed)..." oninput="onGdriveSearchInput()" style="width:260px">
+        <button class="btn btn-secondary" onclick="loadGdrive()" style="font-size:13px;padding:8px 14px">🔄 刷新</button>
+        <button class="btn btn-secondary" onclick="openGdriveConfigModal()" style="font-size:13px;padding:8px 14px">⚙️ 云盘设置</button>
+      </div>
+    </div>
+
+    <!-- Storage Quota & Status Bar (Apple monochrome) -->
+    <div id="gdriveQuotaCard" style="margin:0 24px 16px;padding:14px 20px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="width:36px;height:36px;border-radius:8px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:18px">☁️</div>
+        <div>
+          <div style="font-size:13px;font-weight:500;color:#fff" id="gdriveQuotaTitle">云盘连接状态</div>
+          <div style="font-size:12px;color:#888" id="gdriveQuotaDetail">检测中...</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:20px" id="gdriveQuotaMetrics"></div>
+    </div>
+
+    <!-- Breadcrumb & Path Bar -->
+    <div style="margin:0 24px 12px;display:flex;align-items:center;gap:8px;font-size:13px;color:#888;flex-wrap:wrap" id="gdriveBreadcrumbs">
+      <span style="cursor:pointer;color:#fff" onclick="navigateGdriveBreadcrumb(0)">📁 根目录</span>
+    </div>
+
+    <!-- File Browser Table (Apple minimalist list) -->
+    <div style="margin:0 24px 24px;border-radius:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);overflow:hidden">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;text-align:left">
+        <thead>
+          <tr style="color:#888;border-bottom:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.02)">
+            <th style="padding:12px 16px;font-weight:500">名称</th>
+            <th style="padding:12px 16px;font-weight:500;width:120px">大小</th>
+            <th style="padding:12px 16px;font-weight:500;width:180px">修改时间</th>
+            <th style="padding:12px 16px;font-weight:500;text-align:right;width:140px">操作</th>
+          </tr>
+        </thead>
+        <tbody id="gdriveFileList">
+          <tr><td colspan="4" style="text-align:center;padding:40px;color:#888">正在连接 Google Drive...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
   <div id="modalContainer"></div>
   <script>
     let servers = [];
@@ -495,11 +543,30 @@ export const HTML = `<!DOCTYPE html>
       createPitfall: (serverId, data) => fetch('/api/servers/' + serverId + '/pitfalls', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) }).then(r => r.json()),
       deletePitfall: (id) => fetch('/api/servers/pitfalls/' + id, { method:'DELETE' }).then(r => r.json()),
       knowledgeSearch: (q, category) => fetch('/api/knowledge/search?q=' + encodeURIComponent(q||'') + '&category=' + encodeURIComponent(category||'all')).then(r => r.json()),
+      gdriveStatus: () => fetch('/api/gdrive/status').then(r => r.json()),
+      gdriveFiles: (folderId, query, pageSize, pageToken) => {
+        let url = '/api/gdrive/files?';
+        if (folderId) url += 'folder_id=' + encodeURIComponent(folderId) + '&';
+        if (query) url += 'query=' + encodeURIComponent(query) + '&';
+        if (pageSize) url += 'page_size=' + encodeURIComponent(pageSize) + '&';
+        if (pageToken) url += 'page_token=' + encodeURIComponent(pageToken) + '&';
+        return fetch(url).then(r => r.json());
+      },
+      gdriveFile: (id) => fetch('/api/gdrive/file/' + id).then(r => r.json()),
+      saveGdriveConfig: (service_account_json, root_folder_id) => fetch('/api/gdrive/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ service_account_json, root_folder_id })
+      }).then(r => r.json()),
     };
 
     let knowledgeCategory = 'all';
     let knowledgeSearchTimer = null;
     let knowledgeItems = [];
+
+    let gdriveCurrentFolder = '';
+    let gdriveBreadcrumbs = [{ id: '', name: '根目录' }];
+    let gdriveSearchTimer = null;
 
     function switchPage(page) {
       currentPage = page;
@@ -512,6 +579,7 @@ export const HTML = `<!DOCTYPE html>
       if (page === 'servers') loadServers();
       else if (page === 'knowledge') loadKnowledge();
       else if (page === 'datasets') refreshDatasetsPage();
+      else if (page === 'gdrive') loadGdrive();
       else if (page === 'proxies') loadProxies();
       else if (page === 'logs') loadLogs();
     }
@@ -3628,6 +3696,265 @@ export const HTML = `<!DOCTYPE html>
       var resDiv = document.getElementById('nim-test-result');
       if (resDiv) {
         resDiv.innerHTML = '<div style="padding:10px;border-radius:6px;background:rgba(245,158,11,0.15);color:#fbbf24;font-size:13px;text-align:center;">已清除本地自定义 Key，已回退为继承 Worker 环境变量。</div>';
+      }
+    }
+
+    // === Google Drive Frontend Methods ===
+    async function loadGdrive(folderId, keepBreadcrumb) {
+      if (folderId !== undefined) {
+        gdriveCurrentFolder = folderId;
+      }
+      if (!keepBreadcrumb && !folderId) {
+        gdriveBreadcrumbs = [{ id: '', name: '根目录' }];
+      }
+      renderGdriveBreadcrumbs();
+
+      var query = (document.getElementById('gdriveSearchInput')?.value || '').trim();
+      var listTbody = document.getElementById('gdriveFileList');
+      if (listTbody) {
+        listTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:40px;color:#888"><div class="spinner" style="display:inline-block;vertical-align:middle;margin-right:8px"></div> 正在加载云盘数据...</td></tr>';
+      }
+
+      try {
+        // 1. Status & Quota check
+        var statusData = await API.gdriveStatus();
+        renderGdriveQuota(statusData);
+
+        if (!statusData.configured) {
+          renderGdriveUnconfigured();
+          return;
+        }
+
+        // 2. Fetch files
+        var filesResp = await API.gdriveFiles(gdriveCurrentFolder, query);
+        if (!filesResp.success) {
+          if (listTbody) {
+            listTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:40px;color:#f87171">❌ 获取文件列表失败: ' + escHtml(filesResp.error || '未知错误') + '</td></tr>';
+          }
+          return;
+        }
+
+        renderGdriveFiles(filesResp.files || []);
+      } catch (err) {
+        if (listTbody) {
+          listTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:40px;color:#f87171">❌ 网络或服务请求异常: ' + escHtml(err.message || String(err)) + '</td></tr>';
+        }
+      }
+    }
+
+    function onGdriveSearchInput() {
+      if (gdriveSearchTimer) clearTimeout(gdriveSearchTimer);
+      gdriveSearchTimer = setTimeout(function() {
+        loadGdrive(gdriveCurrentFolder, true);
+      }, 300);
+    }
+
+    function renderGdriveQuota(status) {
+      var subtitle = document.getElementById('gdriveAccountSubtitle');
+      var quotaTitle = document.getElementById('gdriveQuotaTitle');
+      var quotaDetail = document.getElementById('gdriveQuotaDetail');
+      var quotaMetrics = document.getElementById('gdriveQuotaMetrics');
+
+      if (!status || !status.configured) {
+        if (subtitle) subtitle.innerHTML = 'Google Drive 服务账号未配置';
+        if (quotaTitle) quotaTitle.innerHTML = '云盘未连接';
+        if (quotaDetail) quotaDetail.innerHTML = '请配置 Google Service Account JSON 启用云端直连';
+        if (quotaMetrics) {
+          quotaMetrics.innerHTML = '<button class="btn btn-primary" onclick="openGdriveConfigModal()" style="font-size:12px;padding:6px 14px">立即配置凭据</button>';
+        }
+        return;
+      }
+
+      if (subtitle) {
+        subtitle.innerHTML = '已连接服务账号: <code style="color:#aaa;background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px">' + escHtml(status.service_account_email || 'Service Account') + '</code>';
+      }
+      if (quotaTitle) quotaTitle.innerHTML = '🟢 实时连接正常';
+
+      var q = status.quota || {};
+      var usageGb = q.usage ? (parseInt(q.usage, 10) / (1024 * 1024 * 1024)).toFixed(2) : '0';
+      var limitGb = q.limit ? (parseInt(q.limit, 10) / (1024 * 1024 * 1024)).toFixed(0) : '无限';
+      if (quotaDetail) {
+        quotaDetail.innerHTML = '已占用空间: <b>' + usageGb + ' GB</b>' + (limitGb !== '无限' ? ' / ' + limitGb + ' GB' : ' (无限容量/组织盘)');
+      }
+
+      if (quotaMetrics) {
+        quotaMetrics.innerHTML =
+          '<div style="text-align:right">' +
+            '<div style="font-size:11px;color:#888">云盘归属</div>' +
+            '<div style="font-size:13px;color:#fff;font-family:monospace">' + escHtml(q.userEmail || status.service_account_email || 'Google Drive') + '</div>' +
+          '</div>';
+      }
+    }
+
+    function renderGdriveUnconfigured() {
+      var listTbody = document.getElementById('gdriveFileList');
+      if (!listTbody) return;
+      listTbody.innerHTML =
+        '<tr><td colspan="4" style="padding:48px 24px;text-align:center;">' +
+          '<div style="font-size:36px;margin-bottom:12px">☁️</div>' +
+          '<div style="font-size:16px;font-weight:600;color:#fff;margin-bottom:8px">尚未配置 Google Drive 访问凭据</div>' +
+          '<div style="font-size:13px;color:#888;max-width:520px;margin:0 auto 20px;line-height:1.6">' +
+            '为实现边缘端免登录实时检索实验产出、模型检查点（best.pt）和云端归档，请绑定一个 Google Cloud Service Account（服务账号）。' +
+          '</div>' +
+          '<button class="btn btn-primary" onclick="openGdriveConfigModal()" style="font-size:13px;padding:8px 20px">⚙️ 填写 Service Account JSON</button>' +
+        '</td></tr>';
+    }
+
+    function renderGdriveBreadcrumbs() {
+      var container = document.getElementById('gdriveBreadcrumbs');
+      if (!container) return;
+
+      var html = '';
+      gdriveBreadcrumbs.forEach(function(b, idx) {
+        var isLast = idx === gdriveBreadcrumbs.length - 1;
+        if (idx > 0) {
+          html += '<span style="color:#555">/</span>';
+        }
+        if (isLast) {
+          html += '<span style="color:#fff;font-weight:500">' + escHtml(b.name) + '</span>';
+        } else {
+          html += '<span style="cursor:pointer;color:#888" class="gdrive-breadcrumb-item" onclick="navigateGdriveBreadcrumb(' + idx + ')">' + escHtml(b.name) + '</span>';
+        }
+      });
+      container.innerHTML = html;
+    }
+
+    function openGdriveFolder(folderId, folderName) {
+      gdriveBreadcrumbs.push({ id: folderId, name: folderName });
+      loadGdrive(folderId, true);
+    }
+
+    function navigateGdriveBreadcrumb(idx) {
+      gdriveBreadcrumbs = gdriveBreadcrumbs.slice(0, idx + 1);
+      var target = gdriveBreadcrumbs[idx];
+      loadGdrive(target.id, true);
+    }
+
+    function renderGdriveFiles(files) {
+      var listTbody = document.getElementById('gdriveFileList');
+      if (!listTbody) return;
+
+      if (!files || files.length === 0) {
+        listTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:48px;color:#888">📭 该目录下暂无文件或未匹配到搜索结果</td></tr>';
+        return;
+      }
+
+      var html = '';
+      files.forEach(function(f) {
+        var isFolder = f.mimeType === 'application/vnd.google-apps.folder';
+        var sizeBytes = f.size ? parseInt(f.size, 10) : null;
+        var sizeFormatted = isFolder
+          ? '<span style="color:#666">--</span>'
+          : sizeBytes !== null
+          ? (sizeBytes > 1024 * 1024 * 1024 ? (sizeBytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB' : (sizeBytes / (1024 * 1024)).toFixed(2) + ' MB')
+          : '<span style="color:#666">--</span>';
+
+        var modTime = f.modifiedTime ? new Date(f.modifiedTime).toLocaleString() : '--';
+        var icon = isFolder ? '📁' : (f.name.endsWith('.pt') || f.name.endsWith('.pth') || f.name.endsWith('.bin') || f.name.endsWith('.safetensors') ? '⚖️' : (f.name.endsWith('.json') || f.name.endsWith('.yaml') || f.name.endsWith('.txt') || f.name.endsWith('.log') ? '📄' : '📦'));
+
+        var escapedName = escHtml(f.name);
+        var nameCell = isFolder
+          ? '<div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="openGdriveFolder(&quot;' + f.id + '&quot;, &quot;' + escapedName.replace(/"/g, '&quot;') + '&quot;)">' +
+              '<span style="font-size:16px">' + icon + '</span>' +
+              '<span style="color:#fff;font-weight:500;text-decoration:underline;text-decoration-color:rgba(255,255,255,0.2)">' + escapedName + '</span>' +
+            '</div>'
+          : '<div style="display:flex;align-items:center;gap:10px">' +
+              '<span style="font-size:16px">' + icon + '</span>' +
+              '<span style="color:#ddd;font-family:monospace;font-size:12.5px">' + escapedName + '</span>' +
+            '</div>';
+
+        var actionBtns = '';
+        if (f.webViewLink) {
+          actionBtns += '<a href="' + escHtml(f.webViewLink) + '" target="_blank" class="btn btn-secondary" style="font-size:11px;padding:4px 8px;text-decoration:none;display:inline-block">在 Drive 查看</a>';
+        }
+        actionBtns += ' <button class="btn btn-secondary" onclick="copyGdriveFileId(&quot;' + f.id + '&quot;)" style="font-size:11px;padding:4px 8px" title="复制 Google Drive File ID">复制 ID</button>';
+
+        html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.04)" class="gdrive-table-row">' +
+          '<td style="padding:10px 16px">' + nameCell + '</td>' +
+          '<td style="padding:10px 16px;color:#aaa;font-size:12px;font-family:monospace">' + sizeFormatted + '</td>' +
+          '<td style="padding:10px 16px;color:#888;font-size:12px">' + escHtml(modTime) + '</td>' +
+          '<td style="padding:10px 16px;text-align:right">' + actionBtns + '</td>' +
+        '</tr>';
+      });
+
+      listTbody.innerHTML = html;
+    }
+
+    function copyGdriveFileId(id) {
+      navigator.clipboard.writeText(id).then(function() {
+        alert('文件 ID 已复制到剪贴板: ' + id);
+      });
+    }
+
+    function openGdriveConfigModal() {
+      var content = document.createElement('div');
+      content.style.padding = '8px 0';
+      content.innerHTML =
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:12px;">' +
+          '<div style="display:flex;align-items:center;gap:10px;">' +
+            '<div style="font-size:22px;">⚙️</div>' +
+            '<div>' +
+              '<h2 style="margin:0;font-size:16px;font-weight:600;color:#fff">Google Drive 凭据配置</h2>' +
+              '<div style="font-size:12px;color:#888;margin-top:2px">绑定 Google Cloud Service Account 实现边缘端免登实时浏览</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;line-height:1.6;color:#aaa">' +
+          '💡 <b>配置指引</b>：<br>' +
+          '1. 在 Google Cloud Console 创建一个 <b>Service Account</b> 并下载 JSON Key 文件。<br>' +
+          '2. 在 Google Drive 中，将您的备份根文件夹（如 <code>server_backups</code>）<b>共享</b> 给该 Service Account 的 <code>client_email</code>。<br>' +
+          '3. 将 JSON 文件内容完整粘贴在下方输入框中即可保存生效。' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label style="font-size:12px;font-weight:500;color:#fff;margin-bottom:6px;display:block">🔑 Service Account JSON 密钥内容</label>' +
+          '<textarea id="gdrive-sa-input" rows="8" placeholder="请在此处粘贴下载的 JSON 文件内容..." style="width:100%;font-family:monospace;font-size:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;padding:10px;box-sizing:border-box"></textarea>' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label style="font-size:12px;font-weight:500;color:#fff;margin-bottom:6px;display:block">📁 根文件夹 ID (可选，留空则默认全盘或已有配置)</label>' +
+          '<input id="gdrive-folder-input" type="text" placeholder="例如: 1AbCdEfGhIjKlMnOpQrStUvWxYz..." style="width:100%;font-family:monospace;font-size:12px;box-sizing:border-box;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:6px;padding:8px 10px">' +
+        '</div>' +
+        '<div id="gdrive-save-result" style="margin-top:12px"></div>' +
+        '<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">' +
+          '<button class="btn btn-secondary" onclick="closeModal()" type="button">取消</button>' +
+          '<button class="btn btn-primary" onclick="saveGdriveConfigSubmit()" id="gdrive-save-btn" type="button">保存并验证连接</button>' +
+        '</div>';
+
+      showModalWithElement(content, '560px');
+    }
+
+    async function saveGdriveConfigSubmit() {
+      var saJson = (document.getElementById('gdrive-sa-input')?.value || '').trim();
+      var folderId = (document.getElementById('gdrive-folder-input')?.value || '').trim();
+      var saveBtn = document.getElementById('gdrive-save-btn');
+      var resDiv = document.getElementById('gdrive-save-result');
+
+      if (!saJson) {
+        alert('请粘贴 Service Account JSON 内容！');
+        return;
+      }
+
+      if (saveBtn) saveBtn.disabled = true;
+      if (resDiv) {
+        resDiv.innerHTML = '<div style="padding:10px;color:#888;font-size:12px">正在保存并验证 Google API 连通性...</div>';
+      }
+
+      try {
+        var r = await API.saveGdriveConfig(saJson, folderId || undefined);
+        if (r.success) {
+          resDiv.innerHTML = '<div style="padding:10px;border-radius:6px;background:rgba(16,185,129,0.15);color:#34d399;font-size:13px;text-align:center">✅ Google Drive 服务账号配置已成功保存！</div>';
+          setTimeout(function() {
+            closeModal();
+            loadGdrive();
+          }, 800);
+        } else {
+          resDiv.innerHTML = '<div style="padding:10px;border-radius:6px;background:rgba(239,68,68,0.15);color:#f87171;font-size:13px">❌ ' + escHtml(r.error || '保存失败') + '</div>';
+        }
+      } catch (err) {
+        if (resDiv) {
+          resDiv.innerHTML = '<div style="padding:10px;border-radius:6px;background:rgba(239,68,68,0.15);color:#f87171;font-size:13px">❌ 请求异常: ' + escHtml(err.message || String(err)) + '</div>';
+        }
+      } finally {
+        if (saveBtn) saveBtn.disabled = false;
       }
     }
 

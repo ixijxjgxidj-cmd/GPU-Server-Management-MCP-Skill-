@@ -33,6 +33,7 @@ import { importProxySubscriptionTool } from './import_proxy_subscription';
 import { recordPitfallTool } from './record_pitfall';
 import { removePitfallTool } from './remove_pitfall';
 import { queryTroubleshootingTool } from './query_troubleshooting';
+import { listGDriveFilesTool } from './list_gdrive_files';
 
 export const toolRegistry: McpTool[] = [
   // The one-shot "get servers + how to connect" tool — the primary entry point
@@ -66,6 +67,9 @@ export const toolRegistry: McpTool[] = [
   planNetworkRelayTool,
   planServerBackupTool,
   queryBackupIndexTool,
+
+  // Google Drive cloud storage
+  listGDriveFilesTool,
 
   // Dataset Management
   registerDatasetTool,

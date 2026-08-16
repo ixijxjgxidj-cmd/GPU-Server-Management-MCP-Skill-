@@ -139,6 +139,12 @@ export interface DBServerPitfall {
   updated_at: string;
 }
 
+export interface DBSystemSetting {
+  key: string;
+  value: string;
+  updated_at: string;
+}
+
 // Types that include D1 result types
 export interface Env {
   DB: D1Database;
@@ -147,4 +153,6 @@ export interface Env {
   AI_MODEL_NAME?: string;
   AI_MODEL_API_KEY?: string;
   BRIDGE_TOKEN?: string;
+  GDRIVE_SERVICE_ACCOUNT_JSON?: string;
+  GDRIVE_ROOT_FOLDER_ID?: string;
 }

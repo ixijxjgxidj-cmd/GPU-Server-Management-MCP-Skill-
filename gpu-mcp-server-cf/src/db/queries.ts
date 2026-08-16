@@ -1004,3 +1004,21 @@ export async function searchTroubleshootingKnowledgeRAG(
     .slice(0, limit);
 }
 
+export async function getSystemSetting(db: D1Database, key: string): Promise<string | null> {
+  try {
+    const res = await db.prepare('SELECT value FROM system_settings WHERE key = ?').bind(key).first<{ value: string }>();
+    return res ? res.value : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+export async function setSystemSetting(db: D1Database, key: string, value: string): Promise<void> {
+  const now = new Date().toISOString();
+  await db.prepare(`
+    INSERT INTO system_settings (key, value, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+  `).bind(key, value, now).run();
+}
+
