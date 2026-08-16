@@ -135,6 +135,7 @@ Every task session on a GPU machine MUST follow this 5-step loop:
 > 🔒 **【核心边界与 SOCKS5 专用铁律】**：  
 > 集群 SOCKS5 代理池 (`reachable_proxies` / `proxy_acceleration.ready_to_use_commands.ssh_proxy_jump`) **仅专门用于 SSH 跳板连接与端口穿透**。  
 > **严禁将 SOCKS5 代理池用于任何服务器下载、pip 安装或数据集拉取任务！**  
+> **严禁 SSH 本机隧道端口**  
 > 下载测速对比仅限于：**直连/国内镜像源** vs **服务器本机已配置好的本地代理环境 (如本机 127.0.0.1 代理或 /etc/profile.d/00-proxy.sh)**。
 
 当服务器需要定位或拉取任何数据集、模型权重、历史产出或依赖包时，所有 Agent **必须严格执行以下不可跳步的三层状态机 (3-Tier Escalation State Machine)**：

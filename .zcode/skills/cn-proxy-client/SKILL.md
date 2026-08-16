@@ -10,10 +10,11 @@ Turns a rented CN box into a working proxy client pointed at the `tor1` exit nod
 ## Hard rules
 
 1. **Never route the data path through the user's local Windows machine.** Standing constraint. SSH *from* local for control is fine; a `ssh -R` started *on* local is not. If a tunnel is needed, it must be created and maintained on a selected existing remote relay server (tor1 is the current example).
-2. **Never echo private keys or their contents.** Refer to `key_content: [已配置]`.
-3. **Don't try TUN / transparent proxy / true global mode.** Every box so far lacks `/dev/net/tun` or `CAP_NET_ADMIN`. Userspace only: SOCKS + HTTP inbound + env vars + proxychains.
-4. **Measure sources, never assume.** Mirror-vs-node speed flips per box because each gets a different CN ISP egress. Skipping `bench.sh` has produced wrong config twice.
-5. **On a real external-download failure, use live MCP routing.** Attempt the bounded direct transfer first; then call `get_servers` for the target and `plan_network_relay` for the exact URL before retrying through a current proxy. Never copy proxy credentials into this skill, persistent target configuration, logs, or user-facing output.
+2. **严禁 SSH 本机隧道端口**
+3. **Never echo private keys or their contents.** Refer to `key_content: [已配置]`.
+4. **Don't try TUN / transparent proxy / true global mode.** Every box so far lacks `/dev/net/tun` or `CAP_NET_ADMIN`. Userspace only: SOCKS + HTTP inbound + env vars + proxychains.
+5. **Measure sources, never assume.** Mirror-vs-node speed flips per box because each gets a different CN ISP egress. Skipping `bench.sh` has produced wrong config twice.
+6. **On a real external-download failure, use live MCP routing.** Attempt the bounded direct transfer first; then call `get_servers` for the target and `plan_network_relay` for the exact URL before retrying through a current proxy. Never copy proxy credentials into this skill, persistent target configuration, logs, or user-facing output.
 
 ## Workflow
 
