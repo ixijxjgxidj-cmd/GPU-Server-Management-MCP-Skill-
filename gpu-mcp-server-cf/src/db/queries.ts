@@ -4,7 +4,7 @@ import { v4 as uuid } from 'uuid';
 // ===== Server Queries =====
 
 export async function listServers(db: D1Database, tag?: string, onlyEnabled?: boolean): Promise<DBServer[]> {
-  let query = 'SELECT * FROM servers';
+  let query = "SELECT * FROM servers WHERE id NOT IN ('global', 'proxy')";
   const conditions: string[] = [];
   const params: unknown[] = [];
   if (tag) {
@@ -15,7 +15,7 @@ export async function listServers(db: D1Database, tag?: string, onlyEnabled?: bo
     conditions.push('enabled = 1');
   }
   if (conditions.length > 0) {
-    query += ' WHERE ' + conditions.join(' AND ');
+    query += ' AND ' + conditions.join(' AND ');
   }
   query += ' ORDER BY created_at DESC';
   const result = await db.prepare(query).bind(...params).all<DBServer>();
@@ -104,6 +104,9 @@ export async function updateServer(
 }
 
 export async function deleteServer(db: D1Database, id: string): Promise<boolean> {
+  if (id === 'global' || id === 'proxy') {
+    return false; // 永久全局知识锚点禁止物理删除
+  }
   const server = await getServerById(db, id);
   if (server) {
     // 以 IP 地址为唯一计量存不存在：如果索引对应的 IP 的服务器被删除，那索引一同消失
@@ -538,12 +541,112 @@ export async function upsertServerNote(
 
 // ===== Server Pitfalls (踩坑记录与经验沉淀) =====
 
+export const SEED_GLOBAL_PROXY_PITFALLS: Array<{
+  id: string;
+  server_id: string;
+  category: string;
+  is_global: number;
+  title: string;
+  description: string;
+  workaround: string;
+  severity: 'info' | 'warning' | 'critical';
+  tags: string[];
+  agent: string;
+}> = [
+  {
+    id: 'seed-proxy-dns-113',
+    server_id: 'global',
+    category: 'proxy',
+    is_global: 1,
+    title: 'sing-box 1.13.18 拒绝旧版 legacy DNS 配置 (FATAL: legacy DNS servers)',
+    description: 'sing-box 1.13+ 对旧配置中的 dns.servers.address 直接抛出 FATAL 错误退出，依赖 ENABLE_DEPRECATED_LEGACY_DNS_SERVERS 无法长期稳定运行。',
+    workaround: '用户态 HTTP/SOCKS5 客户端不需要自建 DNS，直接在 /etc/sb/client.json 中移除 dns 段，使用系统 DNS 解析；若必须配置，使用新版 dns.servers: [{"tag":"remote","address":"https://1.1.1.1/dns-query"}]。',
+    severity: 'critical',
+    tags: ['sing-box', 'dns', 'compatibility', '1.13', 'proxy'],
+    agent: 'proxy-zone',
+  },
+  {
+    id: 'seed-proxy-etxtbsy',
+    server_id: 'global',
+    category: 'proxy',
+    is_global: 1,
+    title: '远端覆盖 sing-box 二进制报 Text file busy (ETXTBSY)',
+    description: '通过远端中转 (tor1) 的 scp/SFTP 直接覆盖正在运行或刚传输完成的 /usr/local/bin/sing-box 时，执行可能报 Text file busy，因后台 sftp 进程或句柄尚未完全释放。',
+    workaround: '严禁原地覆盖！先上传至临时路径 /tmp/sing-box.uploading，chmod 755 后使用 mv -f 原子替换；若已报错，执行 cp /usr/local/bin/sing-box /usr/local/bin/sing-box.new && chmod 755 /usr/local/bin/sing-box.new && mv -f /usr/local/bin/sing-box.new /usr/local/bin/sing-box。',
+    severity: 'warning',
+    tags: ['sing-box', 'scp', 'sftp', 'etxtbsy', 'linux', 'proxy'],
+    agent: 'proxy-zone',
+  },
+  {
+    id: 'seed-proxy-no-tun',
+    server_id: 'global',
+    category: 'proxy',
+    is_global: 1,
+    title: '国内容器普遍缺失 TUN 与 CAP_NET_ADMIN (严禁尝试透明代理)',
+    description: '云 GPU 容器（如 Deepln、趋动云、超算中心）普遍运行在 Docker/K8s 内，缺少 /dev/net/tun 设备且无 CAP_NET_ADMIN 权限。尝试配置透明代理、TUN 模式或 iptables 规则会导致容器网络崩溃。',
+    workaround: '坚决使用用户态代理方案：SOCKS5 (127.0.0.1:10808) + HTTP (127.0.0.1:10809)，通过 /etc/profile.d/00-proxy.sh 注入 shell 环境变量，配合 /usr/local/bin/sb-keepalive.sh 守护进程，并通过 proxy-mode on/off 控制。',
+    severity: 'critical',
+    tags: ['container', 'tun', 'net-admin', 'deepln', 'docker', 'proxy'],
+    agent: 'proxy-zone',
+  },
+  {
+    id: 'seed-proxy-httpx-allproxy',
+    server_id: 'global',
+    category: 'proxy',
+    is_global: 1,
+    title: 'all_proxy=socks5h:// 导致 Hugging Face (httpx) 报错崩溃',
+    description: 'Python huggingface_hub 底层使用的 httpx 库对 socks5h:// 或 socks5:// scheme 支持不完善，配置后 snapshot_download 可能会抛出异常。',
+    workaround: '环境变量中统一使用 http:// 代理协议头：export http_proxy="http://127.0.0.1:10809" https_proxy="http://127.0.0.1:10809" all_proxy="http://127.0.0.1:10809"，或在 Python 代码中仅指定 HTTP 代理。',
+    severity: 'warning',
+    tags: ['huggingface', 'httpx', 'all_proxy', 'python', 'proxy'],
+    agent: 'proxy-zone',
+  },
+  {
+    id: 'seed-proxy-virtaicloud-pypi',
+    server_id: 'global',
+    category: 'proxy',
+    is_global: 1,
+    title: 'virtaicloud 平台默认 pypi.virtaicloud.com 响应 500 超时',
+    description: '部分定制化国内云平台镜像内置的私有 pip 镜像源（如 pypi.virtaicloud.com）长期失效，请求在 39 秒后返回 500 错误。',
+    workaround: '在 /etc/pip/pip.conf 和 ~/.pip/pip.conf 中强制覆盖为官方源 index-url = https://pypi.org/simple 或国内稳定镜像源（清华/阿里源）。',
+    severity: 'warning',
+    tags: ['pip', 'virtaicloud', 'mirror', 'timeout', 'proxy'],
+    agent: 'proxy-zone',
+  },
+  {
+    id: 'seed-proxy-hy2-reality',
+    server_id: 'global',
+    category: 'proxy',
+    is_global: 1,
+    title: 'Hysteria2 (UDP 443) 极速抗丢包与 VLESS Reality (TCP 443) 备用线路',
+    description: '国内直连海外 Toronto 存在约 37.5% 严重丢包，纯 TCP 协议吞吐只有 75KB/s~1.2MB/s，易引发下载中断。',
+    workaround: '首选使用 Hysteria2 (UDP 443) 协议，实测吞吐可提升至 4~5 MB/s；若服务器 UDP 端口被云厂商封禁，使用 VLESS Reality (TCP 443) 时必须开启 h2mux 多路复用 (max_streams: 8)，速度可提升至 1.3+ MB/s。',
+    severity: 'info',
+    tags: ['hysteria2', 'vless-reality', 'multiplex', 'udp', 'speed', 'proxy'],
+    agent: 'proxy-zone',
+  },
+  {
+    id: 'seed-proxy-apt-bypass',
+    server_id: 'global',
+    category: 'proxy',
+    is_global: 1,
+    title: '国内 APT 镜像源直连加速与绕过代理配置',
+    description: '国内节点如果将 apt 流量全局走海外代理，下载 Ubuntu 官方源速度反而极慢，甚至触发连接超时。',
+    workaround: '写入 /etc/apt/apt.conf.d/95-proxy-bypass，对 mirrors.ustc.edu.cn、mirrors.aliyun.com、mirrors.tuna.tsinghua.edu.cn 配置 "DIRECT" 绕过代理，走物理内网千兆直连。',
+    severity: 'info',
+    tags: ['apt', 'mirrors', 'bypass', 'ustc', 'aliyun', 'proxy'],
+    agent: 'proxy-zone',
+  },
+];
+
 export async function ensurePitfallsTable(db: D1Database): Promise<void> {
   try {
     await db.prepare(`
       CREATE TABLE IF NOT EXISTS server_pitfalls (
         id          TEXT PRIMARY KEY,
         server_id   TEXT NOT NULL,
+        category    TEXT DEFAULT 'general',
+        is_global   INTEGER NOT NULL DEFAULT 0,
         title       TEXT NOT NULL,
         description TEXT NOT NULL,
         workaround  TEXT NOT NULL,
@@ -551,15 +654,56 @@ export async function ensurePitfallsTable(db: D1Database): Promise<void> {
         tags        TEXT,
         agent       TEXT,
         created_at  TEXT NOT NULL,
-        updated_at  TEXT NOT NULL,
-        FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
+        updated_at  TEXT NOT NULL
       )
     `).run();
-    await db.prepare(`
-      CREATE INDEX IF NOT EXISTS idx_server_pitfalls_server ON server_pitfalls(server_id)
-    `).run();
+
+    // Ensure columns exist on legacy tables
+    try { await db.prepare("ALTER TABLE server_pitfalls ADD COLUMN category TEXT DEFAULT 'general'").run(); } catch {}
+    try { await db.prepare("ALTER TABLE server_pitfalls ADD COLUMN is_global INTEGER NOT NULL DEFAULT 0").run(); } catch {}
+    try { await db.prepare("CREATE INDEX IF NOT EXISTS idx_server_pitfalls_category ON server_pitfalls(category)").run(); } catch {}
+    try { await db.prepare("CREATE INDEX IF NOT EXISTS idx_server_pitfalls_global ON server_pitfalls(is_global)").run(); } catch {}
+
+    // Seed global proxy pitfalls if not present
+    for (const seed of SEED_GLOBAL_PROXY_PITFALLS) {
+      try {
+        const check = await db.prepare('SELECT id FROM server_pitfalls WHERE id = ?').bind(seed.id).all();
+        const exists = check && check.results && check.results.length > 0;
+        if (!exists) {
+          const now = new Date().toISOString();
+          await db.prepare(`
+            INSERT INTO server_pitfalls (id, server_id, category, is_global, title, description, workaround, severity, tags, agent, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+            seed.id, seed.server_id, seed.category, seed.is_global,
+            seed.title, seed.description, seed.workaround, seed.severity,
+            JSON.stringify(seed.tags), seed.agent, now, now
+          ).run();
+        }
+      } catch (e) {
+        console.warn('Error seeding proxy pitfall:', seed.id, e);
+      }
+    }
   } catch (e) {
-    console.warn('ensurePitfallsTable error or already exists:', e);
+    console.warn('ensurePitfallsTable error:', e);
+  }
+}
+
+export async function getGlobalProxyPitfalls(db: D1Database): Promise<DBServerPitfall[]> {
+  await ensurePitfallsTable(db);
+  try {
+    const result = await db.prepare(
+      `SELECT * FROM server_pitfalls WHERE category = 'proxy' OR is_global = 1 OR server_id = 'global' ORDER BY created_at DESC`
+    ).all<DBServerPitfall>();
+    return result.results.map(p => ({
+      ...p,
+      is_global: true,
+      category: 'proxy',
+      is_shared: true,
+      source_server_name: '🌐 全局出海代理专区 (永久知识库)',
+    }));
+  } catch {
+    return [];
   }
 }
 
@@ -602,13 +746,27 @@ export async function getServerPitfalls(
     }
   }
 
-  // 3. Fetch all pitfalls for requested servers + peer servers
+  // 3. Fetch all pitfalls for requested servers + peer servers + global proxy pitfalls
   const allIdsArray = Array.from(allRelevantServerIds);
   const allPlaceholders = allIdsArray.map(() => '?').join(',');
   try {
     const result = await db.prepare(
-      `SELECT * FROM server_pitfalls WHERE server_id IN (${allPlaceholders}) ORDER BY created_at DESC`
+      `SELECT * FROM server_pitfalls WHERE server_id IN (${allPlaceholders}) OR is_global = 1 OR server_id = 'global' OR category = 'proxy' ORDER BY created_at DESC`
     ).bind(...allIdsArray).all<DBServerPitfall>();
+
+    // Global / proxy permanent pitfalls
+    const globalPitfalls: DBServerPitfall[] = [];
+    for (const p of result.results) {
+      if (p.is_global === 1 || p.server_id === 'global' || p.category === 'proxy') {
+        globalPitfalls.push({
+          ...p,
+          is_global: true,
+          is_shared: true,
+          category: p.category || 'proxy',
+          source_server_name: '🌐 全局代理专区',
+        });
+      }
+    }
 
     // 4. Build per-server pitfall lists with provider-shared deduplicated entries
     const map: Record<string, DBServerPitfall[]> = {};
@@ -621,6 +779,9 @@ export async function getServerPitfalls(
       const seenSignatures = new Set<string>();
 
       for (const p of result.results) {
+        if (p.is_global === 1 || p.server_id === 'global' || p.category === 'proxy') {
+          continue; // Handled separately in global list
+        }
         const sig = `${p.title.trim()}||${p.workaround.trim()}`;
         if (p.server_id === targetId) {
           seenSignatures.add(sig);
@@ -644,7 +805,8 @@ export async function getServerPitfalls(
         }
       }
 
-      map[targetId] = [...directPitfalls, ...sharedPitfalls];
+      // Merge: direct server pitfalls -> provider shared pitfalls -> permanent global proxy zone pitfalls
+      map[targetId] = [...directPitfalls, ...sharedPitfalls, ...globalPitfalls];
     }
 
     return map;
@@ -665,6 +827,8 @@ export async function addServerPitfall(
   db: D1Database,
   data: {
     server_id: string;
+    category?: string;
+    is_global?: boolean | number;
     title: string;
     description: string;
     workaround: string;
@@ -679,18 +843,22 @@ export async function addServerPitfall(
   const severity = data.severity || 'warning';
   const tagsJson = data.tags && data.tags.length > 0 ? JSON.stringify(data.tags) : null;
   const agent = data.agent || 'agent';
+  const category = data.category || (data.server_id === 'global' || data.server_id === 'proxy' || (data.tags && data.tags.some(t => t.toLowerCase().includes('proxy') || t.toLowerCase().includes('sing-box'))) ? 'proxy' : 'general');
+  const isGlobal = (data.is_global === true || data.is_global === 1 || data.server_id === 'global' || data.server_id === 'proxy' || category === 'proxy') ? 1 : 0;
 
   await db.prepare(`
-    INSERT INTO server_pitfalls (id, server_id, title, description, workaround, severity, tags, agent, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO server_pitfalls (id, server_id, category, is_global, title, description, workaround, severity, tags, agent, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
-    id, data.server_id, data.title, data.description, data.workaround,
+    id, data.server_id, category, isGlobal, data.title, data.description, data.workaround,
     severity, tagsJson, agent, now, now
   ).run();
 
   return {
     id,
     server_id: data.server_id,
+    category,
+    is_global: isGlobal === 1,
     title: data.title,
     description: data.description,
     workaround: data.workaround,
@@ -971,26 +1139,36 @@ export async function searchTroubleshootingKnowledgeRAG(
       const params: unknown[] = [];
       if (allowedServerIds.size > 0) {
         const pids = Array.from(allowedServerIds);
-        pitfallQuery += ` WHERE server_id IN (${pids.map(() => '?').join(',')})`;
+        pitfallQuery += ` WHERE server_id IN (${pids.map(() => '?').join(',')}) OR is_global = 1 OR server_id = 'global' OR category = 'proxy'`;
         params.push(...pids);
       }
       pitfallQuery += ' ORDER BY created_at DESC';
       const pitfallRows = await db.prepare(pitfallQuery).bind(...params).all<DBServerPitfall>();
       for (const p of pitfallRows.results) {
         const s = serverMap.get(p.server_id);
+        const isGlobalProxy = p.is_global === 1 || p.server_id === 'global' || p.category === 'proxy';
         const isPeerProvider = targetServerId && p.server_id !== targetServerId && targetProvider && s?.provider?.trim() === targetProvider;
         let tags: string[] = [];
         if (p.tags) {
           try { tags = typeof p.tags === 'string' ? JSON.parse(p.tags) : p.tags; } catch {}
         }
         if (s?.provider) tags.push(s.provider);
+        if (isGlobalProxy && !tags.includes('proxy-zone')) tags.push('proxy-zone');
+
+        let displayTitle = p.title;
+        if (isGlobalProxy) {
+          displayTitle = `[🌐 全局代理专区] ${p.title}`;
+        } else if (isPeerProvider) {
+          displayTitle = `[${targetProvider}共享避坑] ${p.title}`;
+        }
+
         items.push({
           id: p.id,
           source_type: 'pitfall',
           server_id: p.server_id,
-          server_name: s ? s.name : '未知节点',
-          server_host: s ? s.host : '',
-          title: isPeerProvider ? `[${targetProvider}共享避坑] ${p.title}` : p.title,
+          server_name: isGlobalProxy ? '🌐 出海代理配置专区 (永久沉淀)' : (s ? s.name : '未知节点'),
+          server_host: isGlobalProxy ? 'Global Proxy Zone' : (s ? s.host : ''),
+          title: displayTitle,
           problem_summary: p.description,
           workaround_or_content: p.workaround,
           severity: p.severity || 'warning',

@@ -266,6 +266,7 @@ export const HTML = `<!DOCTYPE html>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input class="search-input" id="searchInput" placeholder="搜索名称/IP..." oninput="renderServers()">
+        <button class="btn btn-secondary" onclick="showGlobalProxyPitfallsModal()" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:#fff;font-weight:500;">🌐 代理避坑专区</button>
         <button class="btn-primary" onclick="probeAll()">📡 全部探测</button>
         <button class="btn-primary" onclick="showAddServer()">+ 添加</button>
       </div>
@@ -541,6 +542,8 @@ export const HTML = `<!DOCTYPE html>
       planRelay: (target_server_id, resource_url) => fetch('/mcp', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({jsonrpc:'2.0', id: Date.now(), method:'tools/call', params:{name:'plan_network_relay', arguments:{target_server_id, resource_url}}}) }).then(r => r.json()),
       pitfalls: (serverId) => fetch('/api/servers/' + serverId + '/pitfalls').then(r => r.json()),
       createPitfall: (serverId, data) => fetch('/api/servers/' + serverId + '/pitfalls', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) }).then(r => r.json()),
+      proxyPitfalls: () => fetch('/api/servers/pitfalls/proxy').then(r => r.json()),
+      createProxyPitfall: (data) => fetch('/api/servers/pitfalls/proxy', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) }).then(r => r.json()),
       deletePitfall: (id) => fetch('/api/servers/pitfalls/' + id, { method:'DELETE' }).then(r => r.json()),
       knowledgeSearch: (q, category) => fetch('/api/knowledge/search?q=' + encodeURIComponent(q||'') + '&category=' + encodeURIComponent(category||'all')).then(r => r.json()),
       gdriveStatus: () => fetch('/api/gdrive/status').then(r => r.json()),
@@ -3332,6 +3335,199 @@ export const HTML = `<!DOCTYPE html>
         modalContent.appendChild(addBox);
 
         // Footer Actions
+        const footer = document.createElement('div');
+        footer.className = 'modal-actions';
+        footer.style.cssText = 'margin-top:8px;';
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'btn btn-secondary';
+        closeBtn.textContent = '关闭';
+        closeBtn.onclick = closeModal;
+        footer.appendChild(closeBtn);
+        modalContent.appendChild(footer);
+
+        showModalWithElement(modalContent);
+      } catch (e) {
+        showModal('<h2>❌ 加载失败</h2><p style="color:var(--red)">' + e.message + '</p><div class="modal-actions"><button class="btn-primary" onclick="closeModal()">关闭</button></div>');
+      }
+    }
+
+    async function showGlobalProxyPitfallsModal() {
+      showModal('<div class="ai-loading"><div class="spinner"></div><span>加载出海代理配置专区...</span></div>');
+      try {
+        const pitfallList = await API.proxyPitfalls();
+        const modalContent = document.createElement('div');
+        modalContent.style.cssText = 'max-width:760px;display:flex;flex-direction:column;gap:16px;';
+
+        // Header
+        const header = document.createElement('div');
+        header.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
+          + '<h2 style="margin:0;font-size:20px;color:#fff;display:flex;align-items:center;gap:8px;">🌐 出海代理配置与避坑专区 <span style="font-size:12px;padding:2px 8px;border-radius:6px;background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.3);font-weight:600;">永久知识沉淀</span></h2>'
+          + '<span style="font-size:12px;padding:3px 10px;border-radius:12px;background:rgba(99,102,241,0.15);color:#818cf8;border:1px solid rgba(99,102,241,0.3);font-weight:600;">' + pitfallList.length + ' 条经验库</span>'
+          + '</div>'
+          + '<div style="font-size:13px;color:var(--text-dim);margin-top:6px;line-height:1.5;">包含 sing-box、Hysteria2、VLESS Reality、DNS 解析与国内容器环境实测经验。<strong>本专区知识永久沉淀，绝不随任何服务器删除而消失</strong>，随 <code>get_servers</code> 自动同步给所有 Agent。</div>';
+        modalContent.appendChild(header);
+
+        // List Container
+        const listContainer = document.createElement('div');
+        listContainer.id = 'proxyPitfallsListContainer';
+        listContainer.style.cssText = 'display:flex;flex-direction:column;gap:12px;max-height:420px;overflow-y:auto;padding-right:4px;';
+
+        function renderCards(items) {
+          listContainer.innerHTML = '';
+          if (items.length === 0) {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.style.cssText = 'padding:28px 16px;border:1px dashed rgba(255,255,255,0.12);border-radius:12px;text-align:center;color:var(--text-dim);font-size:13px;background:rgba(255,255,255,0.01);';
+            emptyDiv.innerHTML = '<div style="font-size:28px;margin-bottom:6px;">✨</div><div style="font-size:14px;color:#fff;font-weight:600;">暂无代理专区记录</div>';
+            listContainer.appendChild(emptyDiv);
+            return;
+          }
+
+          items.forEach(p => {
+            const card = document.createElement('div');
+            card.style.cssText = 'background:rgba(255,255,255,0.025);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;';
+
+            // Top Row
+            const topRow = document.createElement('div');
+            topRow.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;gap:8px;';
+
+            const titleLeft = document.createElement('div');
+            titleLeft.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+
+            const titleSpan = document.createElement('span');
+            titleSpan.style.cssText = 'font-weight:700;font-size:15px;color:#fff;';
+            titleSpan.textContent = p.title;
+            titleLeft.appendChild(titleSpan);
+
+            // Severity Badge
+            const sevBadge = document.createElement('span');
+            sevBadge.style.cssText = 'padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700;';
+            const sev = (p.severity || 'warning').toLowerCase();
+            if (sev === 'critical') {
+              sevBadge.style.background = 'rgba(239,68,68,0.18)'; sevBadge.style.color = '#f87171'; sevBadge.style.border = '1px solid rgba(239,68,68,0.35)'; sevBadge.textContent = '🔴 严重阻断';
+            } else if (sev === 'info') {
+              sevBadge.style.background = 'rgba(59,130,246,0.18)'; sevBadge.style.color = '#60a5fa'; sevBadge.style.border = '1px solid rgba(59,130,246,0.35)'; sevBadge.textContent = '🔵 提示建议';
+            } else {
+              sevBadge.style.background = 'rgba(245,158,11,0.18)'; sevBadge.style.color = '#fbbf24'; sevBadge.style.border = '1px solid rgba(245,158,11,0.35)'; sevBadge.textContent = '🟠 警告陷阱';
+            }
+            titleLeft.appendChild(sevBadge);
+
+            const permBadge = document.createElement('span');
+            permBadge.style.cssText = 'padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700;background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.3);';
+            permBadge.textContent = '🌐 永久沉淀';
+            titleLeft.appendChild(permBadge);
+
+            topRow.appendChild(titleLeft);
+
+            const delBtn = document.createElement('button');
+            delBtn.style.cssText = 'padding:2px 8px;font-size:11px;background:transparent;border:1px solid rgba(239,68,68,0.3);color:var(--red);border-radius:6px;cursor:pointer;';
+            delBtn.innerHTML = '🗑️ 删除';
+            delBtn.onclick = async () => {
+              if (confirm('确定删除此代理专区记录 [' + p.title + '] 吗？')) {
+                await API.deletePitfall(p.id);
+                showToast('已删除记录', 'success');
+                const updated = await API.proxyPitfalls();
+                renderCards(updated);
+              }
+            };
+            topRow.appendChild(delBtn);
+            card.appendChild(topRow);
+
+            // Description
+            const descDiv = document.createElement('div');
+            descDiv.style.cssText = 'font-size:13px;color:var(--text);line-height:1.5;background:rgba(0,0,0,0.2);padding:8px 12px;border-radius:8px;border-left:3px solid var(--border);white-space:pre-wrap;';
+            descDiv.innerHTML = '<span style="color:var(--text-dim);font-weight:600;">⚠️ 踩坑现象: </span>' + escHtml(p.description);
+            card.appendChild(descDiv);
+
+            // Workaround
+            const solDiv = document.createElement('div');
+            solDiv.style.cssText = 'font-size:13px;color:#86efac;line-height:1.5;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.25);padding:10px 12px;border-radius:8px;display:flex;flex-direction:column;gap:6px;';
+            
+            const solHeader = document.createElement('div');
+            solHeader.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
+            solHeader.innerHTML = '<span style="color:#4ade80;font-weight:700;font-size:12px;">💡 避坑方案 / 正确指令:</span>';
+            
+            const copySolBtn = document.createElement('button');
+            copySolBtn.className = 'btn btn-secondary';
+            copySolBtn.style.cssText = 'padding:2px 8px;font-size:11px;font-weight:600;border-radius:4px;';
+            copySolBtn.textContent = '📋 复制方案';
+            copySolBtn.onclick = () => {
+              navigator.clipboard.writeText(p.workaround);
+              showToast('已复制避坑方案指令', 'success');
+            };
+            solHeader.appendChild(copySolBtn);
+            solDiv.appendChild(solHeader);
+
+            const solContent = document.createElement('pre');
+            solContent.style.cssText = 'margin:0;font-family:monospace;font-size:12px;color:#bbf7d0;white-space:pre-wrap;word-break:break-all;';
+            solContent.textContent = p.workaround;
+            solDiv.appendChild(solContent);
+
+            card.appendChild(solDiv);
+            listContainer.appendChild(card);
+          });
+        }
+
+        renderCards(pitfallList);
+        modalContent.appendChild(listContainer);
+
+        // Add form
+        const addBox = document.createElement('div');
+        addBox.style.cssText = 'background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;margin-top:4px;';
+        addBox.innerHTML = '<div style="font-weight:700;font-size:14px;color:#fff;display:flex;align-items:center;gap:6px;">➕ 沉淀新代理避坑记录 (永久入库)</div>'
+          + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">'
+          + '<input id="new-proxy-pitfall-title" type="text" placeholder="踩坑标题/简述 (如: Hysteria2 端口阻断回退方案)" style="padding:8px 10px;font-size:13px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);">'
+          + '<select id="new-proxy-pitfall-sev" style="padding:8px 10px;font-size:13px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);"><option value="warning">🟠 警告陷阱</option><option value="critical">🔴 严重阻断</option><option value="info">🔵 提示建议</option></select>'
+          + '</div>'
+          + '<textarea id="new-proxy-pitfall-desc" rows="2" placeholder="踩坑详细现象 / 报错日志 / 触发条件..." style="width:100%;padding:8px 10px;font-size:12px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;resize:vertical;"></textarea>'
+          + '<textarea id="new-proxy-pitfall-sol" rows="2" placeholder="避坑方案 / 正确操作指令 / 规避方法..." style="width:100%;padding:8px 10px;font-size:12px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:monospace;resize:vertical;"></textarea>'
+          + '<div style="display:flex;justify-content:flex-end;">'
+          + '<button id="submit-proxy-pitfall-btn" class="btn-primary" style="padding:8px 16px;font-size:13px;">💾 永久沉淀至代理专区</button>'
+          + '</div>';
+
+        const submitBtn = addBox.querySelector('#submit-proxy-pitfall-btn');
+        if (submitBtn) {
+          submitBtn.onclick = async () => {
+            const title = (document.getElementById('new-proxy-pitfall-title').value || '').trim();
+            const severity = document.getElementById('new-proxy-pitfall-sev').value;
+            const description = (document.getElementById('new-proxy-pitfall-desc').value || '').trim();
+            const workaround = (document.getElementById('new-proxy-pitfall-sol').value || '').trim();
+
+            if (!title || !description || !workaround) {
+              alert('请填写完整的标题、踩坑现象与避坑方案！');
+              return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = '提交中...';
+            try {
+              const res = await API.createProxyPitfall({
+                title,
+                severity,
+                description,
+                workaround,
+                tags: ['proxy', 'sing-box', 'global-zone'],
+                agent: 'web-user',
+              });
+              if (res && res.success) {
+                showToast('✔ 代理避坑经验已永久沉淀至专区！', 'success');
+                document.getElementById('new-proxy-pitfall-title').value = '';
+                document.getElementById('new-proxy-pitfall-desc').value = '';
+                document.getElementById('new-proxy-pitfall-sol').value = '';
+                const updated = await API.proxyPitfalls();
+                renderCards(updated);
+              } else {
+                alert('录入失败: ' + (res && res.error ? res.error : '未知错误'));
+              }
+            } catch (err) {
+              alert('网络错误: ' + err.message);
+            } finally {
+              submitBtn.disabled = false;
+              submitBtn.textContent = '💾 永久沉淀至代理专区';
+            }
+          };
+        }
+        modalContent.appendChild(addBox);
+
         const footer = document.createElement('div');
         footer.className = 'modal-actions';
         footer.style.cssText = 'margin-top:8px;';

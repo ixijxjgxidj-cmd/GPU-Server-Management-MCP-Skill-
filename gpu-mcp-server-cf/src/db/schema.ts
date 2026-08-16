@@ -137,6 +137,8 @@ export interface DBServerNote {
 export interface DBServerPitfall {
   id: string;
   server_id: string;
+  category?: 'proxy' | 'environment' | 'hardware' | 'network' | 'general' | string | null;
+  is_global?: number | boolean; // 1 = 全局知识库专区（不随任何服务器删除而消失）
   provider?: string | null;   // 归属运营商
   is_shared?: boolean;        // 是否为同运营商共享的避坑沉淀
   source_server_name?: string;// 来源服务器名称

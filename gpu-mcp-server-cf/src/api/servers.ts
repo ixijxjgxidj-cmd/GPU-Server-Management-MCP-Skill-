@@ -1,11 +1,46 @@
 import { Hono } from 'hono';
 import type { Env } from '../db/schema';
-import { listServers, getServerById, createServer, updateServer, deleteServer, queryServersByAbility, getReachability, updateServerTask, releaseServerTask, updateServerStatus, setServerEnabled, listBackupIndexes, deleteBackupIndexById, searchBackupIndexesRAG, listProxies, upsertReachability, getServerPitfalls, getPitfallsForServer, addServerPitfall, deleteServerPitfall } from '../db/queries';
+import { listServers, getServerById, createServer, updateServer, deleteServer, queryServersByAbility, getReachability, updateServerTask, releaseServerTask, updateServerStatus, setServerEnabled, listBackupIndexes, deleteBackupIndexById, searchBackupIndexesRAG, listProxies, upsertReachability, getServerPitfalls, getPitfallsForServer, getGlobalProxyPitfalls, addServerPitfall, deleteServerPitfall } from '../db/queries';
 import { dbServerToDetail } from '../models/server';
 import { tcpPing, grabSSHBanner } from '../probe/ping';
 import { testViaSocks5 } from '../probe/socks5';
 
 const app = new Hono<{ Bindings: Env }>();
+
+// GET /api/servers/pitfalls/proxy: Get all permanent global proxy zone pitfalls
+app.get('/pitfalls/proxy', async (c) => {
+  const list = await getGlobalProxyPitfalls(c.env.DB);
+  return c.json(list);
+});
+
+// POST /api/servers/pitfalls/proxy: Add a permanent global proxy pitfall
+app.post('/pitfalls/proxy', async (c) => {
+  const body = await c.req.json();
+  const title = body.title?.trim();
+  const description = body.description?.trim();
+  const workaround = body.workaround?.trim();
+  const severity = body.severity || 'warning';
+  const tags = Array.isArray(body.tags) ? body.tags : ['proxy'];
+  const agent = body.agent?.trim() || 'user';
+
+  if (!title || !description || !workaround) {
+    return c.json({ error: 'title, description, and workaround are required' }, 400);
+  }
+
+  const pitfall = await addServerPitfall(c.env.DB, {
+    server_id: 'global',
+    category: 'proxy',
+    is_global: 1,
+    title,
+    description,
+    workaround,
+    severity,
+    tags,
+    agent,
+  });
+
+  return c.json({ success: true, is_global: true, category: 'proxy', pitfall });
+});
 
 // List all servers
 app.get('/', async (c) => {
@@ -385,7 +420,7 @@ app.get('/:id/pitfalls', async (c) => {
   return c.json(list);
 });
 
-// Add a pitfall for a server
+// Add a pitfall for a server (or global/proxy zone)
 app.post('/:id/pitfalls', async (c) => {
   const serverId = c.req.param('id');
   const body = await c.req.json();
@@ -393,6 +428,8 @@ app.post('/:id/pitfalls', async (c) => {
   const description = body.description?.trim();
   const workaround = body.workaround?.trim();
   const severity = body.severity || 'warning';
+  const category = body.category?.trim();
+  const isGlobal = body.is_global === true || serverId === 'global' || serverId === 'proxy' || category === 'proxy';
   const tags = Array.isArray(body.tags) ? body.tags : undefined;
   const agent = body.agent?.trim() || 'user';
 
@@ -400,11 +437,15 @@ app.post('/:id/pitfalls', async (c) => {
     return c.json({ error: 'title, description, and workaround are required' }, 400);
   }
 
-  const server = await getServerById(c.env.DB, serverId);
-  if (!server) return c.json({ error: 'Server not found' }, 404);
+  if (serverId !== 'global' && serverId !== 'proxy') {
+    const server = await getServerById(c.env.DB, serverId);
+    if (!server) return c.json({ error: 'Server not found' }, 404);
+  }
 
   const pitfall = await addServerPitfall(c.env.DB, {
     server_id: serverId,
+    category,
+    is_global: isGlobal,
     title,
     description,
     workaround,
@@ -413,7 +454,7 @@ app.post('/:id/pitfalls', async (c) => {
     agent,
   });
 
-  return c.json({ success: true, server_id: serverId, pitfall });
+  return c.json({ success: true, server_id: serverId, is_global: isGlobal, pitfall });
 });
 
 // Delete a pitfall
