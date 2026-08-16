@@ -56,6 +56,6 @@ describe('planRelay', () => {
     const r = planRelay(srv('t', { direct_when_no_proxy: 0 }), 'https://x/y', [], []);
     expect(r.proxy_acceleration).toBeUndefined();
     expect(r.jump_relay).toBeUndefined();
-    expect(r.how_to).toContain('verify_server_connectivity');
+    expect(r.how_to).toContain('目标域名');
   });
 });

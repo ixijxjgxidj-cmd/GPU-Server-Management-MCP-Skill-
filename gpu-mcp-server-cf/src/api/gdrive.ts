@@ -45,6 +45,106 @@ app.get('/status', async (c) => {
   }
 });
 
+// GET /api/gdrive/setup.sh: Download one-click bash setup script populated with credentials
+app.get('/setup.sh', async (c) => {
+  const config = await resolveConfig(c.env);
+  if (!config || !config.serviceAccount) {
+    return c.text('#!/bin/bash\necho "❌ 错误: Google Drive 尚未配置 Service Account 凭据"\nexit 1\n', 400);
+  }
+
+  const saJson = JSON.stringify(config.serviceAccount, null, 2);
+  const rootFolderId = config.rootFolderId || '1P255fLRCi6a44v0Ygrv1RvMyqxKh0b52';
+
+  const script = `#!/bin/bash
+set -e
+echo "🚀 开始在当前服务器自动配置 Google Drive (rclone) 环境..."
+
+mkdir -p ~/.config/rclone /etc/rclone /etc/gdrive
+
+cat << 'JSON_EOF' > /etc/gdrive/service_account.json
+${saJson}
+JSON_EOF
+chmod 600 /etc/gdrive/service_account.json
+
+cat << 'CONF_EOF' > ~/.config/rclone/rclone.conf
+[gdrive]
+type = drive
+scope = drive
+service_account_file = /etc/gdrive/service_account.json
+root_folder_id = ${rootFolderId}
+CONF_EOF
+cp ~/.config/rclone/rclone.conf /etc/rclone/rclone.conf 2>/dev/null || true
+
+# 安装 rclone (若缺失)
+if ! command -v rclone &> /dev/null; then
+    echo "📦 正在安装 rclone..."
+    if command -v apt-get &> /dev/null; then
+        apt-get update -y && apt-get install -y rclone || curl -fsSL https://rclone.org/install.sh | bash
+    elif command -v yum &> /dev/null; then
+        yum install -y rclone || curl -fsSL https://rclone.org/install.sh | bash
+    else
+        curl -fsSL https://rclone.org/install.sh | bash
+    fi
+fi
+
+# 写入便捷辅助指令
+cat << 'BIN_EOF' > /usr/local/bin/gdrive-push
+#!/bin/bash
+if [ -z "$1" ]; then
+    echo "用法: gdrive-push <本地文件或文件夹路径> [云端子目录名]"
+    echo "示例: gdrive-push ./outputs/best.pt"
+    echo "示例: gdrive-push ./checkpoints/ ceed_run"
+    exit 1
+fi
+LOCAL="$1"
+REMOTE="\${2:-}"
+if [ -d "$LOCAL" ]; then
+    echo "🚀 正在同步文件夹: $LOCAL -> gdrive:$REMOTE"
+    rclone copy -P --transfers 8 --checkers 16 "$LOCAL" "gdrive:$REMOTE"
+else
+    echo "🚀 正在上传文件: $LOCAL -> gdrive:$REMOTE"
+    rclone copy -P "$LOCAL" "gdrive:$REMOTE"
+fi
+echo "✅ 上传完成！可在控制台云盘大盘实时查看。"
+BIN_EOF
+
+cat << 'BIN_EOF' > /usr/local/bin/gdrive-pull
+#!/bin/bash
+if [ -z "$1" ]; then
+    echo "用法: gdrive-pull <云端文件或文件夹路径> [本地存放目录]"
+    echo "示例: gdrive-pull best.pt ./"
+    exit 1
+fi
+REMOTE="$1"
+LOCAL="\${2:-.}"
+echo "📥 正在从 Google Drive 下载: gdrive:$REMOTE -> $LOCAL"
+rclone copy -P --transfers 8 "gdrive:$REMOTE" "$LOCAL"
+echo "✅ 下载完成！"
+BIN_EOF
+
+cat << 'BIN_EOF' > /usr/local/bin/gdrive-ls
+#!/bin/bash
+rclone lsf "gdrive:\${1:-}"
+BIN_EOF
+
+chmod +x /usr/local/bin/gdrive-push /usr/local/bin/gdrive-pull /usr/local/bin/gdrive-ls 2>/dev/null || true
+
+echo ""
+echo "🎉 Google Drive (rclone) 一键配置完成！"
+echo "👉 测试连接:"
+rclone lsd gdrive: 2>/dev/null || echo "已就绪"
+echo ""
+echo "💡 常用命令已生效:"
+echo "  - gdrive-ls                 : 查看云盘文件列表"
+echo "  - gdrive-push <本地> [子目录] : 上传模型/权重/日志至云盘"
+echo "  - gdrive-pull <远端> [本地]   : 从云盘拉取模型/权重"
+`;
+
+  c.header('Content-Type', 'text/x-shellscript; charset=utf-8');
+  return c.text(script);
+});
+
+
 // GET /api/gdrive/files: List files/folders
 app.get('/files', async (c) => {
   try {

@@ -300,6 +300,7 @@ def _to_float(v):
 def parse_probe(out):
     kv = {}
     top_cpu = []
+    env_items = []
     for line in out.splitlines():
         line = line.strip()
         # TOPCPU repeats (up to 3 lines): "TOPCPU=<%cpu>|<%mem>|<cmd>"
@@ -311,6 +312,23 @@ def parse_probe(out):
                     'cpu': _to_float(parts[0]),
                     'mem': _to_float(parts[1]),
                     'cmd': parts[2][:60],
+                })
+            continue
+        # ENV_ITEM: "ENV_ITEM=<name>|<type>|<path>|<pyver>|<torch>|<cuda>|<pkgs>|<activate_cmd>"
+        if line.startswith('ENV_ITEM='):
+            body = line[len('ENV_ITEM='):]
+            parts = body.split('|')
+            if len(parts) >= 8:
+                env_items.append({
+                    'name': parts[0],
+                    'type': parts[1],
+                    'path': parts[2],
+                    'python_version': parts[3] or None,
+                    'torch_version': parts[4] or None,
+                    'cuda_version': parts[5] or None,
+                    'packages': [p for p in parts[6].split(',') if p],
+                    'activate_cmd': parts[7],
+                    'is_primary': False,
                 })
             continue
         m = re.match(r'^([A-Z_]+)=(.*)$', line)
@@ -339,15 +357,75 @@ def parse_probe(out):
         hw['ram_gb'] = _to_int(kv.get('RAM'))
     if _to_int(kv.get('DISK')) is not None:
         hw['disk_gb'] = _to_int(kv.get('DISK'))
-    # Training-environment versions (empty string when absent on the target).
-    if kv.get('PYVER'):
-        env['python_version'] = kv['PYVER']
-    if kv.get('TORCH'):
-        env['torch_version'] = kv['TORCH']
-    # CUDA: prefer driver CUDA (nvidia-smi), fall back to nvcc release.
-    cuda = kv.get('CUDA') or kv.get('NVCC')
+
+    # Parse Mount Points and determine primary data volume
+    mount_points = []
+    primary_data_dir = None
+    if kv.get('MOUNTS'):
+        for m_str in kv['MOUNTS'].split(','):
+            m_parts = m_str.strip().split(':')
+            if len(m_parts) >= 3:
+                m_path = m_parts[0]
+                t_gb = _to_int(m_parts[1]) or 0
+                f_gb = _to_int(m_parts[2]) or 0
+                mount_points.append({
+                    'mount': m_path,
+                    'total_gb': t_gb,
+                    'free_gb': f_gb,
+                    'is_root': m_path == '/',
+                    'is_primary': False,
+                })
+        candidates = [m for m in mount_points if not m['is_root'] and not m['mount'].startswith('/boot')]
+        if candidates:
+            candidates.sort(key=lambda x: (x['free_gb'], x['total_gb']), reverse=True)
+            chosen = candidates[0]
+            chosen['is_primary'] = True
+            primary_data_dir = chosen['mount']
+            load['disk_free_gb'] = chosen['free_gb']
+            hw['disk_gb'] = chosen['total_gb']
+        elif mount_points:
+            mount_points[0]['is_primary'] = True
+            primary_data_dir = mount_points[0]['mount']
+
+    if mount_points:
+        env['mount_points'] = json.dumps(mount_points)
+    if primary_data_dir:
+        env['primary_data_dir'] = primary_data_dir
+
+    # Process discovered Python / Conda environments
+    if env_items:
+        def score_env(e):
+            score = 0
+            if e['torch_version']: score += 100
+            if e['cuda_version']: score += 50
+            if 'flash_attn' in e['packages'] or 'transformers' in e['packages']: score += 30
+            score += len(e['packages']) * 5
+            if e['type'] == 'conda': score += 10
+            return score
+
+        env_items.sort(key=score_env, reverse=True)
+        primary = env_items[0]
+        primary['is_primary'] = True
+
+        env['environments'] = json.dumps(env_items)
+        env['primary_env_cmd'] = primary['activate_cmd'] or primary['path']
+        if primary.get('python_version'):
+            env['python_version'] = primary['python_version']
+        if primary.get('torch_version'):
+            env['torch_version'] = primary['torch_version']
+        if primary.get('cuda_version'):
+            env['cuda_version'] = primary['cuda_version']
+    else:
+        # Fallback to direct versions if absent
+        if kv.get('PYVER'):
+            env['python_version'] = kv['PYVER']
+        if kv.get('TORCH'):
+            env['torch_version'] = kv['TORCH']
+
+    cuda = env.get('cuda_version') or kv.get('CUDA') or kv.get('NVCC')
     if cuda:
         env['cuda_version'] = cuda
+
     return {'load': load, 'hardware': hw, 'env': env, 'top_cpu_tasks': top_cpu[:3]}
 
 

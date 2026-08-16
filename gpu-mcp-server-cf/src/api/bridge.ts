@@ -35,6 +35,7 @@ const PROBE_SCRIPT = [
   'echo "RAM_FREE=$(free -g 2>/dev/null | awk \'/^Mem:/{print $7}\')"',
   'echo "DISK=$(df -BG / 2>/dev/null | awk \'NR==2{gsub(/G/,\\"\\",$2); print $2}\')"',
   'echo "DISK_FREE=$(df -BG / 2>/dev/null | awk \'NR==2{gsub(/G/,\\"\\",$4); print $4}\')"',
+  'echo "MOUNTS=$(df -BG -x tmpfs -x devtmpfs -x overlay -x squashfs -x iso9660 2>/dev/null | awk \'NR>1 {gsub(/G/,\\"\\",$2); gsub(/G/,\\"\\",$4); printf \\"%s:%s:%s,\\", $6, $2, $4}\' | sed \'s/,$//\')"',
   // Training-environment versions (semi-static; empty string if absent).
   // NB: keep NO double-quotes inside these $(...) — the whole line is echo "...".
   'echo "PYVER=$(python3 --version 2>&1 | awk \'{print $2}\')"',
@@ -42,6 +43,8 @@ const PROBE_SCRIPT = [
   // CUDA: prefer driver CUDA from nvidia-smi, fall back to nvcc.
   'echo "CUDA=$(nvidia-smi 2>/dev/null | grep -oE \'CUDA Version: [0-9.]+\' | awk \'{print $3}\' | head -1)"',
   'echo "NVCC=$(nvcc --version 2>/dev/null | grep -oE \'release [0-9.]+\' | awk \'{print $2}\')"',
+  // Deep multi-mount & multi-environment scanner (Base64-encoded Python one-shot runner)
+  'python3 -c "import base64; exec(base64.b64decode(\'aW1wb3J0IG9zLCBzeXMsIGdsb2IsIHN1YnByb2Nlc3MKc2VlbiA9IHNldCgpCmNhbmQgPSBbcCBmb3IgcCBpbiBbJy91c3IvYmluL3B5dGhvbjMnLCAnL3Vzci9iaW4vcHl0aG9uJywgc3lzLmV4ZWN1dGFibGVdIGlmIG9zLnBhdGguZXhpc3RzKHApXQpyb290cyA9IFsnL3Jvb3QnLCAnL29wdCcsICcvZGF0YScsICcvd29ya3NwYWNlJywgJy9yb290L2F1dG9kbC10bXAnLCAnL2h5LXRtcCcsICcvbW50J10KZm9yIHIgaW4gcm9vdHM6CiAgICBmb3IgcGF0IGluIFsKICAgICAgICBmJ3tyfS9taW5pY29uZGEzL2Jpbi9weXRob24nLAogICAgICAgIGYne3J9L2FuYWNvbmRhMy9iaW4vcHl0aG9uJywKICAgICAgICBmJ3tyfS9jb25kYS9iaW4vcHl0aG9uJywKICAgICAgICBmJ3tyfS9taW5pY29uZGEzL2VudnMvKi9iaW4vcHl0aG9uJywKICAgICAgICBmJ3tyfS9hbmFjb25kYTMvZW52cy8qL2Jpbi9weXRob24nLAogICAgICAgIGYne3J9L2NvbmRhL2VudnMvKi9iaW4vcHl0aG9uJywKICAgICAgICBmJ3tyfS9lbnZzLyovYmluL3B5dGhvbicsCiAgICAgICAgZid7cn0vLmNvbmRhL2VudnMvKi9iaW4vcHl0aG9uJywKICAgICAgICBmJ3tyfS8qLy52ZW52L2Jpbi9weXRob24nLAogICAgICAgIGYne3J9LyovdmVudi9iaW4vcHl0aG9uJwogICAgXToKICAgICAgICBjYW5kLmV4dGVuZChnbG9iLmdsb2IocGF0KSkKCnByb2JlX3B5ID0gKAogICAgImltcG9ydCBzeXNcbiIKICAgICJ2ID0gc3lzLnZlcnNpb24uc3BsaXQoKVswXVxuIgogICAgInQgPSAnJ1xuIgogICAgImMgPSAnJ1xuIgogICAgInRyeTpcbiIKICAgICIgICAgaW1wb3J0IHRvcmNoXG4iCiAgICAiICAgIHQgPSBzdHIodG9yY2guX192ZXJzaW9uX18pXG4iCiAgICAiICAgIGMgPSBzdHIoZ2V0YXR0cih0b3JjaC52ZXJzaW9uLCAnY3VkYScsICcnKSBvciAnJylcbiIKICAgICJleGNlcHQgRXhjZXB0aW9uOlxuIgogICAgIiAgICBwYXNzXG4iCiAgICAicGtncyA9IFtdXG4iCiAgICAiZm9yIGsgaW4gWyd0cmFuc2Zvcm1lcnMnLCAndmxsbScsICdmbGFzaF9hdHRuJywgJ2RlZXBzcGVlZCcsICdhY2NlbGVyYXRlJywgJ3RyaXRvbicsICd0b3JjaHZpc2lvbiddOlxuIgogICAgIiAgICB0cnk6XG4iCiAgICAiICAgICAgICBfX2ltcG9ydF9fKGspXG4iCiAgICAiICAgICAgICBwa2dzLmFwcGVuZChrKVxuIgogICAgIiAgICBleGNlcHQgRXhjZXB0aW9uOlxuIgogICAgIiAgICAgICAgcGFzc1xuIgogICAgInByaW50KHYgKyAnfCcgKyB0ICsgJ3wnICsgYyArICd8JyArICcsJy5qb2luKHBrZ3MpKVxuIgopCgpmb3IgcHkgaW4gY2FuZDoKICAgIHJlYWwgPSBvcy5wYXRoLnJlYWxwYXRoKHB5KQogICAgaWYgcmVhbCBpbiBzZWVuIG9yIG5vdCBvcy5wYXRoLmlzZmlsZShyZWFsKToKICAgICAgICBjb250aW51ZQogICAgc2Vlbi5hZGQocmVhbCkKICAgIHBhcnRzID0gcmVhbC5yZXBsYWNlKCdcXCcsICcvJykuc3BsaXQoJy8nKQogICAgZW52X25hbWUgPSAnc3lzdGVtJwogICAgZW52X3R5cGUgPSAnc3lzdGVtJwogICAgYWN0X2NtZCA9ICcnCiAgICBpZiAnZW52cycgaW4gcGFydHM6CiAgICAgICAgaWR4ID0gcGFydHMuaW5kZXgoJ2VudnMnKQogICAgICAgIGlmIGlkeCArIDEgPCBsZW4ocGFydHMpOgogICAgICAgICAgICBlbnZfbmFtZSA9IHBhcnRzW2lkeCArIDFdCiAgICAgICAgICAgIGVudl90eXBlID0gJ2NvbmRhJwogICAgICAgICAgICBjb25kYV9iYXNlID0gJy8nLmpvaW4ocGFydHNbOmlkeF0pCiAgICAgICAgICAgIGFjdF9jbWQgPSBmJ3NvdXJjZSB7Y29uZGFfYmFzZX0vYmluL2FjdGl2YXRlIHtlbnZfbmFtZX0nCiAgICBlbGlmIGFueSgnY29uZGEnIGluIHgubG93ZXIoKSBmb3IgeCBpbiBwYXJ0cyk6CiAgICAgICAgZW52X25hbWUgPSAnYmFzZScKICAgICAgICBlbnZfdHlwZSA9ICdjb25kYScKICAgICAgICBjX2lkeHMgPSBbaSBmb3IgaSwgeCBpbiBlbnVtZXJhdGUocGFydHMpIGlmICdjb25kYScgaW4geC5sb3dlcigpXQogICAgICAgIGNvbmRhX2Jhc2UgPSAnLycuam9pbihwYXJ0c1s6bWF4KGNfaWR4cykrMV0pCiAgICAgICAgYWN0X2NtZCA9IGYnc291cmNlIHtjb25kYV9iYXNlfS9iaW4vYWN0aXZhdGUgYmFzZScKICAgIGVsaWYgJy52ZW52JyBpbiBwYXJ0cyBvciAndmVudicgaW4gcGFydHM6CiAgICAgICAgZW52X25hbWUgPSBwYXJ0c1stM10gaWYgbGVuKHBhcnRzKSA+PSAzIGVsc2UgJ3ZlbnYnCiAgICAgICAgZW52X3R5cGUgPSAndmVudicKICAgICAgICBhY3RfY21kID0gZidzb3VyY2Uge29zLnBhdGguZGlybmFtZShvcy5wYXRoLmRpcm5hbWUocmVhbCkpfS9iaW4vYWN0aXZhdGUnCgogICAgdHJ5OgogICAgICAgIHJlcyA9IHN1YnByb2Nlc3MucnVuKFtyZWFsLCAnLWMnLCBwcm9iZV9weV0sIGNhcHR1cmVfb3V0cHV0PVRydWUsIHRleHQ9VHJ1ZSwgdGltZW91dD01KQogICAgICAgIGlmIHJlcy5yZXR1cm5jb2RlID09IDAgYW5kICd8JyBpbiByZXMuc3Rkb3V0OgogICAgICAgICAgICBwcmludChmIkVOVl9JVEVNPXtlbnZfbmFtZX18e2Vudl90eXBlfXx7cmVhbH18e3Jlcy5zdGRvdXQuc3RyaXAoKX18e2FjdF9jbWR9IikKICAgIGV4Y2VwdCBFeGNlcHRpb246CiAgICAgICAgcGFzcw==\').decode())" 2>/dev/null',
   // Live top-3 CPU processes: "TOPCPU=<%cpu>|<%mem>|<cmd>" one line each.
   'ps -eo pcpu,pmem,comm --sort=-pcpu 2>/dev/null | awk \'NR>1 && NR<=4 {printf "TOPCPU=%s|%s|%s\\n",$1,$2,$3}\'',
 ].join('; ');
@@ -125,7 +128,15 @@ app.post('/report', async (c) => {
       connected_via?: string; // 'direct' | proxy_id
       load?: { gpu_util_pct?: number; gpu_mem_free_gb?: number; ram_free_gb?: number; disk_free_gb?: number; running_tasks?: number };
       hardware?: { gpu_model?: string; gpu_count?: number; cpu_cores?: number; ram_gb?: number; disk_gb?: number };
-      env?: { python_version?: string; torch_version?: string; cuda_version?: string };
+      env?: {
+        python_version?: string;
+        torch_version?: string;
+        cuda_version?: string;
+        mount_points?: string;
+        primary_data_dir?: string;
+        environments?: string;
+        primary_env_cmd?: string;
+      };
       top_cpu_tasks?: Array<{ cpu?: number; mem?: number; cmd?: string }>;
     }>;
   } | null;
@@ -172,7 +183,15 @@ app.post('/report', async (c) => {
         }
         // Training-environment versions (semi-static; only overwrite when detected).
         const env = r.env ?? {};
-        const envMap = { python_version: env.python_version, torch_version: env.torch_version, cuda_version: env.cuda_version };
+        const envMap = {
+          python_version: env.python_version,
+          torch_version: env.torch_version,
+          cuda_version: env.cuda_version,
+          mount_points: env.mount_points,
+          primary_data_dir: env.primary_data_dir,
+          environments: env.environments,
+          primary_env_cmd: env.primary_env_cmd,
+        };
         for (const [col, val] of Object.entries(envMap)) {
           if (val !== undefined && val !== null && val !== '') updates[col] = val;
         }

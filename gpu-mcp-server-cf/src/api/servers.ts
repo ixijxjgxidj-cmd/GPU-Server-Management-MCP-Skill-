@@ -114,6 +114,7 @@ app.post('/', async (c) => {
   const body = await c.req.json();
   const id = await createServer(c.env.DB, {
     name: body.name,
+    provider: body.provider ?? null,
     vendor_url: body.vendor_url ?? null,
     host: body.host,
     port: body.port ?? 22,

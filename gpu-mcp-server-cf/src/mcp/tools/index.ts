@@ -25,6 +25,8 @@ import { planDiskShareTool } from './plan_disk_share';
 import { planNetworkRelayTool } from './plan_network_relay';
 import { registerDatasetTool } from './register_dataset';
 import { removeDatasetTool } from './remove_dataset';
+import { registerEnvironmentTool } from './register_environment';
+import { removeEnvironmentTool } from './remove_environment';
 import { claimServerTool } from './claim_server';
 import { releaseServerTool } from './release_server';
 import { planServerBackupTool } from './plan_server_backup';
@@ -71,9 +73,11 @@ export const toolRegistry: McpTool[] = [
   // Google Drive cloud storage
   listGDriveFilesTool,
 
-  // Dataset Management
+  // Dataset & Environment Collective Memory
   registerDatasetTool,
   removeDatasetTool,
+  registerEnvironmentTool,
+  removeEnvironmentTool,
 ];
 
 export function getTool(name: string): McpTool | undefined {

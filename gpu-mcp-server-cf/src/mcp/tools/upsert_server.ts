@@ -23,6 +23,7 @@ export const upsertServerTool: McpTool = {
         key_content: { type: 'string', description: 'SSH私钥明文（key认证）。服务端原样存储，get_servers 返回时转单行base64。' },
         password: { type: 'string', description: 'SSH密码（password认证）。' },
         vendor_url: { type: 'string', description: '供应商实例链接（可选）。' },
+        provider: { type: 'string', description: '运营商/供应商名称（如 "AutoDL"、"RunPod"、"Vast.ai"、"阿里云"、"腾讯云"、"恒源云"、"自建机房"）。同运营商的所有服务器将自动共享避坑经验与运维笔记。' },
         v2ray_available: { type: 'boolean', description: '是否安装V2RayN。' },
         direct_when_proxy_available: { type: 'boolean', description: '有V2RayN时是否允许直连。' },
         direct_when_no_proxy: { type: 'boolean', description: '无代理时是否允许直连物理网卡。' },
@@ -43,6 +44,13 @@ export const upsertServerTool: McpTool = {
         ram_free_gb: { type: 'number', description: '空闲内存GB(负载快照)。' },
         disk_free_gb: { type: 'number', description: '空闲磁盘GB(负载快照)。' },
         running_tasks: { type: 'number', description: '当前运行任务数(负载快照)。' },
+        python_version: { type: 'string', description: 'Python版本, 如 "3.10.14"' },
+        torch_version: { type: 'string', description: 'PyTorch版本, 如 "2.4.0+cu121"' },
+        cuda_version: { type: 'string', description: 'CUDA版本, 如 "12.1"' },
+        primary_data_dir: { type: 'string', description: '主工作数据盘路径, 如 "/root/autodl-tmp"' },
+        primary_env_cmd: { type: 'string', description: '推荐环境激活命令, 如 "source /root/miniconda3/bin/activate base"' },
+        mount_points: { type: 'array', items: { type: 'object' }, description: '挂载点列表 JSON' },
+        environments: { type: 'array', items: { type: 'object' }, description: '已安装环境列表 JSON' },
         agent: { type: 'string', description: '执行回写的agent标识(用于notes_entry.updated_by)。' },
         notes_entry: {
           type: 'object',
@@ -72,6 +80,7 @@ export const upsertServerTool: McpTool = {
       key_content: args.key_content,
       password: args.password,
       vendor_url: args.vendor_url,
+      provider: args.provider,
       v2ray_available: boolToInt(args.v2ray_available),
       direct_when_proxy_available: boolToInt(args.direct_when_proxy_available),
       direct_when_no_proxy: boolToInt(args.direct_when_no_proxy),
@@ -92,6 +101,13 @@ export const upsertServerTool: McpTool = {
       gpu_sharing_mode: args.gpu_sharing_mode,
       connection_type: args.connection_type,
       tags: Array.isArray(args.tags) ? JSON.stringify(args.tags) : undefined,
+      python_version: args.python_version,
+      torch_version: args.torch_version,
+      cuda_version: args.cuda_version,
+      primary_data_dir: args.primary_data_dir,
+      primary_env_cmd: args.primary_env_cmd,
+      mount_points: Array.isArray(args.mount_points) ? JSON.stringify(args.mount_points) : (typeof args.mount_points === 'string' ? args.mount_points : undefined),
+      environments: Array.isArray(args.environments) ? JSON.stringify(args.environments) : (typeof args.environments === 'string' ? args.environments : undefined),
     };
 
     const loadProvided = ['gpu_util_pct','gpu_mem_free_gb','ram_free_gb','disk_free_gb','running_tasks']
@@ -126,6 +142,7 @@ export const upsertServerTool: McpTool = {
 
     const id = await createServer(db, {
       name: args.name as string,
+      provider: (args.provider as string) ?? null,
       vendor_url: (args.vendor_url as string) ?? null,
       host,
       port: (args.port as number) ?? 22,

@@ -4,7 +4,7 @@ import { updateServer } from '../../db/queries';
 export const updateServerTool: McpTool = {
   definition: {
     name: 'update_server',
-    description: '更新服务器字段。传入 updates 对象，只改传入的字段。可用字段：name, host, port, username, auth_method, key_path, key_content(明文), password, vendor_url, v2ray_available, direct_when_proxy_available, direct_when_no_proxy, is_jump_host(1跳板机/0普通), gpu_model, gpu_memory_gb, cpu_cores, ram_gb, disk_gb, default_proxy_id, tags, notes, enabled(1显示/0隐藏)。也用于保存SSH检测到的硬件信息或临时上下架服务器。',
+    description: '更新服务器字段。传入 updates 对象，只改传入的字段。可用字段：name, host, port, username, auth_method, key_path, key_content(明文), password, provider, vendor_url, v2ray_available, direct_when_proxy_available, direct_when_no_proxy, is_jump_host(1跳板机/0普通), gpu_model, gpu_memory_gb, cpu_cores, ram_gb, disk_gb, default_proxy_id, tags, notes, enabled(1显示/0隐藏)。也用于保存SSH检测到的硬件信息或临时上下架服务器。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -14,6 +14,7 @@ export const updateServerTool: McpTool = {
           description: '要更新的字段集合，只传需要修改的。',
           properties: {
             name: { type: 'string' },
+            provider: { type: 'string', description: '运营商/供应商名称，如 "AutoDL"、"RunPod"、"Vast.ai"、"阿里云"等。' },
             host: { type: 'string' },
             port: { type: 'number' },
             username: { type: 'string' },

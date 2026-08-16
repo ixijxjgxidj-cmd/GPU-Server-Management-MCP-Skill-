@@ -112,24 +112,29 @@ export const planServerBackupTool: McpTool = {
 ${decisionBanner}
 > **RAG 向量索引**：已自动以源机 IP (\`${server.host}\`) 锚定上传至 MCP 数据库。
 
-1. **在源服务器上执行同步至 Google Drive**：
+1. **环境准备（若未配置 Google Drive rclone 环境，执行一键配置）**：
 \`\`\`bash
-mkdir -p "${gdriveRemotePath}"
+curl -fsSL https://gpu-mcp-server-cf.hulkcheng0806.workers.dev/api/gdrive/setup.sh | bash
+\`\`\`
+
+2. **在源服务器上执行极速同步至 Google Drive**：
+\`\`\`bash
 ${isPhysicalExpiringSoon
-  ? `rsync -avP "${remoteDir}/" "${gdriveRemotePath}/"`
-  : `rsync -avP --exclude="*dataset*" --exclude="*data*" --exclude="*.arrow" --exclude="*.parquet" "${remoteDir}/" "${gdriveRemotePath}/"`
+  ? `gdrive-push "${remoteDir}" "${folderName}"`
+  : `gdrive-push "${remoteDir}" "${folderName}"`
 }
 \`\`\`
 
-2. **在本地建立索引文件夹与元数据**：
+3. **在本地建立索引文件夹与元数据**：
 本地路径：\`${localFolder}/\`
 写入索引文件：\`${localFolder}/google_drive_index.json\`
 \`\`\`json
 ${JSON.stringify(indexJson, null, 2)}
 \`\`\`
 
-3. **后续检索指引**：
-后续任务需要此数据时，调用 \`query_backup_index\` 或本地 \`everything-mcp\` 查询本地 \`${localFolder}\`，检测到 \`google_drive_index.json\` 后直接从 Google Drive 挂载/提取。`;
+4. **实时查看与智能体检索**：
+- **Web 仪表盘实时查看**：登录控制台「📁 云盘存储 (Drive)」可实时查看已备份的文件与大小。
+- **Agent MCP 实时调用**：后续任务需要此数据时，调用 \`list_gdrive_files { query: "${folderName}" }\` 或 \`query_backup_index\` 即可秒级定位文件。`;
 
     } else {
       // 查询是否有集群其他可用服务器

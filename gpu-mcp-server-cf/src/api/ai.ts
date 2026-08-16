@@ -16,6 +16,7 @@ interface ExtractedServerInfo {
   cpu_cores?: number;
   ram_gb?: number;
   disk_gb?: number;
+  provider?: string;
   vendor_url?: string;
   tags?: string[];
   notes?: string;
@@ -157,6 +158,7 @@ app.post('/extract-server', async (c) => {
   "cpu_cores": number,
   "ram_gb": number,
   "disk_gb": number,
+  "provider": "cloud operator/provider if visible (e.g. AutoDL, RunPod, Vast.ai, AlibabaCloud, TencentCloud, etc.)",
   "vendor_url": "cloud provider URL if visible",
   "tags": ["any", "relevant", "tags"],
   "notes": "any other useful information"

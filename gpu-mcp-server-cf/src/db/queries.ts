@@ -37,14 +37,17 @@ export async function getServerByHost(db: D1Database, host: string): Promise<DBS
 // If a server with this host exists, update it. If not, insert it.
 export async function upsertServer(
   db: D1Database,
-  data: Omit<DBServer, 'id' | 'created_at' | 'updated_at' | 'status_online' | 'status_last_check' | 'status_ping_ms' | 'status_error' | 'current_task' | 'current_agent' | 'task_started_at' | 'task_duration_minutes' | 'task_expires_at' | 'server_expires_at' | 'enabled' | 'ssh_banner' | 'os_hint' | 'gpu_util_pct' | 'gpu_mem_free_gb' | 'ram_free_gb' | 'disk_free_gb' | 'running_tasks' | 'load_updated_at' | 'gpu_sharing_mode' | 'python_version' | 'torch_version' | 'cuda_version' | 'top_cpu_tasks' | 'datasets' | 'connection_type' | 'is_jump_host'> & { connection_type?: 'standard' | 'cloudflare_tunnel'; server_expires_at?: string | null; is_jump_host?: number }
+  data: Omit<DBServer, 'id' | 'created_at' | 'updated_at' | 'status_online' | 'status_last_check' | 'status_ping_ms' | 'status_error' | 'current_task' | 'current_agent' | 'task_started_at' | 'task_duration_minutes' | 'task_expires_at' | 'server_expires_at' | 'enabled' | 'ssh_banner' | 'os_hint' | 'gpu_util_pct' | 'gpu_mem_free_gb' | 'ram_free_gb' | 'disk_free_gb' | 'running_tasks' | 'load_updated_at' | 'gpu_sharing_mode' | 'python_version' | 'torch_version' | 'cuda_version' | 'top_cpu_tasks' | 'datasets' | 'mount_points' | 'primary_data_dir' | 'environments' | 'primary_env_cmd' | 'connection_type' | 'is_jump_host' | 'provider'> & { connection_type?: 'standard' | 'cloudflare_tunnel'; server_expires_at?: string | null; is_jump_host?: number; mount_points?: string | null; primary_data_dir?: string | null; environments?: string | null; primary_env_cmd?: string | null; provider?: string | null }
 ): Promise<{ id: string; created: boolean }> {
   const existing = await getServerByHost(db, data.host);
   if (existing) {
     await updateServer(db, existing.id, {
       ...data,
+      provider: data.provider !== undefined ? data.provider : existing.provider,
       connection_type: data.connection_type ?? existing.connection_type ?? 'standard',
       is_jump_host: data.is_jump_host !== undefined ? data.is_jump_host : existing.is_jump_host ?? 0,
+      primary_data_dir: data.primary_data_dir ?? existing.primary_data_dir ?? null,
+      primary_env_cmd: data.primary_env_cmd ?? existing.primary_env_cmd ?? null,
     });
     return { id: existing.id, created: false };
   }
@@ -54,22 +57,26 @@ export async function upsertServer(
 
 export async function createServer(
   db: D1Database,
-  data: Omit<DBServer, 'id' | 'created_at' | 'updated_at' | 'status_online' | 'status_last_check' | 'status_ping_ms' | 'status_error' | 'current_task' | 'current_agent' | 'task_started_at' | 'task_duration_minutes' | 'task_expires_at' | 'server_expires_at' | 'enabled' | 'ssh_banner' | 'os_hint' | 'gpu_util_pct' | 'gpu_mem_free_gb' | 'ram_free_gb' | 'disk_free_gb' | 'running_tasks' | 'load_updated_at' | 'gpu_sharing_mode' | 'python_version' | 'torch_version' | 'cuda_version' | 'top_cpu_tasks' | 'datasets' | 'connection_type' | 'is_jump_host'> & { connection_type?: 'standard' | 'cloudflare_tunnel'; server_expires_at?: string | null; is_jump_host?: number }
+  data: Omit<DBServer, 'id' | 'created_at' | 'updated_at' | 'status_online' | 'status_last_check' | 'status_ping_ms' | 'status_error' | 'current_task' | 'current_agent' | 'task_started_at' | 'task_duration_minutes' | 'task_expires_at' | 'server_expires_at' | 'enabled' | 'ssh_banner' | 'os_hint' | 'gpu_util_pct' | 'gpu_mem_free_gb' | 'ram_free_gb' | 'disk_free_gb' | 'running_tasks' | 'load_updated_at' | 'gpu_sharing_mode' | 'python_version' | 'torch_version' | 'cuda_version' | 'top_cpu_tasks' | 'datasets' | 'mount_points' | 'primary_data_dir' | 'environments' | 'primary_env_cmd' | 'connection_type' | 'is_jump_host' | 'provider'> & { connection_type?: 'standard' | 'cloudflare_tunnel'; server_expires_at?: string | null; is_jump_host?: number; mount_points?: string | null; primary_data_dir?: string | null; environments?: string | null; primary_env_cmd?: string | null; provider?: string | null }
 ): Promise<string> {
   const id = uuid();
   const now = new Date().toISOString();
   await db.prepare(`
-    INSERT INTO servers (id, name, vendor_url, host, port, username, auth_method, key_path, key_content, password,
+    INSERT INTO servers (id, name, provider, vendor_url, host, port, username, auth_method, key_path, key_content, password,
       v2ray_available, direct_when_proxy_available, direct_when_no_proxy,
       gpu_model, gpu_memory_gb, gpu_count, cpu_cores, ram_gb, disk_gb,
-      default_proxy_id, tags, notes, connection_type, is_jump_host, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      default_proxy_id, tags, notes, connection_type, is_jump_host,
+      mount_points, primary_data_dir, environments, primary_env_cmd,
+      created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
-    id, data.name, data.vendor_url, data.host, data.port, data.username, data.auth_method,
+    id, data.name, data.provider ?? null, data.vendor_url, data.host, data.port, data.username, data.auth_method,
     data.key_path, data.key_content, data.password,
     data.v2ray_available, data.direct_when_proxy_available, data.direct_when_no_proxy,
     data.gpu_model, data.gpu_memory_gb, data.gpu_count, data.cpu_cores, data.ram_gb, data.disk_gb,
-    data.default_proxy_id, data.tags, data.notes, data.connection_type ?? 'standard', data.is_jump_host || 0, now, now
+    data.default_proxy_id, data.tags, data.notes, data.connection_type ?? 'standard', data.is_jump_host || 0,
+    data.mount_points ?? null, data.primary_data_dir ?? null, data.environments ?? null, data.primary_env_cmd ?? null,
+    now, now
   ).run();
   return id;
 }
@@ -435,14 +442,81 @@ export async function getServerNotes(
   serverIds: string[]
 ): Promise<Record<string, DBServerNote[]>> {
   if (serverIds.length === 0) return {};
+
+  // 1. Query servers to identify providers
   const placeholders = serverIds.map(() => '?').join(',');
-  const result = await db.prepare(
-    `SELECT * FROM server_notes WHERE server_id IN (${placeholders}) ORDER BY updated_at DESC`
-  ).bind(...serverIds).all<DBServerNote>();
-  const map: Record<string, DBServerNote[]> = {};
-  for (const n of result.results) {
-    (map[n.server_id] ??= []).push(n);
+  const requestedServers = await db.prepare(
+    `SELECT id, name, host, provider FROM servers WHERE id IN (${placeholders})`
+  ).bind(...serverIds).all<{ id: string; name: string; host: string; provider: string | null }>();
+
+  const serverMap = new Map<string, { id: string; name: string; host: string; provider: string | null }>();
+  const providers = new Set<string>();
+  for (const s of requestedServers.results) {
+    serverMap.set(s.id, s);
+    if (s.provider && s.provider.trim()) {
+      providers.add(s.provider.trim());
+    }
   }
+
+  // 2. Query peer servers sharing the same providers
+  const allRelevantServerIds = new Set<string>(serverIds);
+  const peerServerMap = new Map<string, { id: string; name: string; host: string; provider: string | null }>();
+  requestedServers.results.forEach(s => peerServerMap.set(s.id, s));
+
+  if (providers.size > 0) {
+    const provPlaceholders = Array.from(providers).map(() => '?').join(',');
+    const peerServers = await db.prepare(
+      `SELECT id, name, host, provider FROM servers WHERE provider IN (${provPlaceholders})`
+    ).bind(...Array.from(providers)).all<{ id: string; name: string; host: string; provider: string | null }>();
+
+    for (const ps of peerServers.results) {
+      allRelevantServerIds.add(ps.id);
+      peerServerMap.set(ps.id, ps);
+    }
+  }
+
+  // 3. Fetch all notes
+  const allIdsArray = Array.from(allRelevantServerIds);
+  const allPlaceholders = allIdsArray.map(() => '?').join(',');
+  const result = await db.prepare(
+    `SELECT * FROM server_notes WHERE server_id IN (${allPlaceholders}) ORDER BY updated_at DESC`
+  ).bind(...allIdsArray).all<DBServerNote>();
+
+  // 4. Build per-server note lists (direct notes first, then provider-shared notes)
+  const map: Record<string, DBServerNote[]> = {};
+  for (const targetId of serverIds) {
+    const targetServer = serverMap.get(targetId);
+    const targetProvider = targetServer?.provider?.trim();
+
+    const directNotes: DBServerNote[] = [];
+    const sharedNotes: DBServerNote[] = [];
+    const seenTopics = new Set<string>();
+
+    for (const n of result.results) {
+      if (n.server_id === targetId) {
+        seenTopics.add(n.topic);
+        directNotes.push({
+          ...n,
+          provider: targetProvider || null,
+          is_shared: false,
+        });
+      } else if (targetProvider && peerServerMap.get(n.server_id)?.provider?.trim() === targetProvider) {
+        if (!seenTopics.has(n.topic)) {
+          seenTopics.add(n.topic);
+          const peer = peerServerMap.get(n.server_id);
+          sharedNotes.push({
+            ...n,
+            provider: targetProvider,
+            is_shared: true,
+            source_server_name: peer?.name,
+          });
+        }
+      }
+    }
+
+    map[targetId] = [...directNotes, ...sharedNotes];
+  }
+
   return map;
 }
 
@@ -495,15 +569,84 @@ export async function getServerPitfalls(
 ): Promise<Record<string, DBServerPitfall[]>> {
   if (serverIds.length === 0) return {};
   await ensurePitfallsTable(db);
+
+  // 1. Fetch servers to identify their providers
   const placeholders = serverIds.map(() => '?').join(',');
+  const requestedServers = await db.prepare(
+    `SELECT id, name, host, provider FROM servers WHERE id IN (${placeholders})`
+  ).bind(...serverIds).all<{ id: string; name: string; host: string; provider: string | null }>();
+
+  const serverMap = new Map<string, { id: string; name: string; host: string; provider: string | null }>();
+  const providers = new Set<string>();
+  for (const s of requestedServers.results) {
+    serverMap.set(s.id, s);
+    if (s.provider && s.provider.trim()) {
+      providers.add(s.provider.trim());
+    }
+  }
+
+  // 2. If any server has a provider, find peer servers of the same provider
+  const allRelevantServerIds = new Set<string>(serverIds);
+  const peerServerMap = new Map<string, { id: string; name: string; host: string; provider: string | null }>();
+  requestedServers.results.forEach(s => peerServerMap.set(s.id, s));
+
+  if (providers.size > 0) {
+    const provPlaceholders = Array.from(providers).map(() => '?').join(',');
+    const peerServers = await db.prepare(
+      `SELECT id, name, host, provider FROM servers WHERE provider IN (${provPlaceholders})`
+    ).bind(...Array.from(providers)).all<{ id: string; name: string; host: string; provider: string | null }>();
+
+    for (const ps of peerServers.results) {
+      allRelevantServerIds.add(ps.id);
+      peerServerMap.set(ps.id, ps);
+    }
+  }
+
+  // 3. Fetch all pitfalls for requested servers + peer servers
+  const allIdsArray = Array.from(allRelevantServerIds);
+  const allPlaceholders = allIdsArray.map(() => '?').join(',');
   try {
     const result = await db.prepare(
-      `SELECT * FROM server_pitfalls WHERE server_id IN (${placeholders}) ORDER BY created_at DESC`
-    ).bind(...serverIds).all<DBServerPitfall>();
+      `SELECT * FROM server_pitfalls WHERE server_id IN (${allPlaceholders}) ORDER BY created_at DESC`
+    ).bind(...allIdsArray).all<DBServerPitfall>();
+
+    // 4. Build per-server pitfall lists with provider-shared deduplicated entries
     const map: Record<string, DBServerPitfall[]> = {};
-    for (const p of result.results) {
-      (map[p.server_id] ??= []).push(p);
+    for (const targetId of serverIds) {
+      const targetServer = serverMap.get(targetId);
+      const targetProvider = targetServer?.provider?.trim();
+
+      const directPitfalls: DBServerPitfall[] = [];
+      const sharedPitfalls: DBServerPitfall[] = [];
+      const seenSignatures = new Set<string>();
+
+      for (const p of result.results) {
+        const sig = `${p.title.trim()}||${p.workaround.trim()}`;
+        if (p.server_id === targetId) {
+          seenSignatures.add(sig);
+          directPitfalls.push({
+            ...p,
+            provider: targetProvider || null,
+            is_shared: false,
+          });
+        } else if (targetProvider && peerServerMap.get(p.server_id)?.provider?.trim() === targetProvider) {
+          if (!seenSignatures.has(sig)) {
+            seenSignatures.add(sig);
+            const peer = peerServerMap.get(p.server_id);
+            sharedPitfalls.push({
+              ...p,
+              provider: targetProvider,
+              is_shared: true,
+              source_server_name: peer?.name,
+              source_server_host: peer?.host,
+            });
+          }
+        }
+      }
+
+      map[targetId] = [...directPitfalls, ...sharedPitfalls];
     }
+
     return map;
   } catch {
     return {};
@@ -514,15 +657,8 @@ export async function getPitfallsForServer(
   db: D1Database,
   serverId: string
 ): Promise<DBServerPitfall[]> {
-  await ensurePitfallsTable(db);
-  try {
-    const result = await db.prepare(
-      'SELECT * FROM server_pitfalls WHERE server_id = ? ORDER BY created_at DESC'
-    ).bind(serverId).all<DBServerPitfall>();
-    return result.results;
-  } catch {
-    return [];
-  }
+  const map = await getServerPitfalls(db, [serverId]);
+  return map[serverId] || [];
 }
 
 export async function addServerPitfall(
@@ -812,6 +948,20 @@ export async function searchTroubleshootingKnowledgeRAG(
   const serverMap = new Map<string, DBServer>();
   servers.forEach(s => serverMap.set(s.id, s));
 
+  const targetServer = targetServerId ? serverMap.get(targetServerId) : undefined;
+  const targetProvider = targetServer?.provider?.trim() || null;
+  const allowedServerIds = new Set<string>();
+  if (targetServerId) {
+    allowedServerIds.add(targetServerId);
+    if (targetProvider) {
+      servers.forEach(s => {
+        if (s.provider && s.provider.trim() === targetProvider) {
+          allowedServerIds.add(s.id);
+        }
+      });
+    }
+  }
+
   const items: RAGKnowledgeItem[] = [];
 
   // 2. Fetch pitfalls
@@ -819,25 +969,28 @@ export async function searchTroubleshootingKnowledgeRAG(
     try {
       let pitfallQuery = 'SELECT * FROM server_pitfalls';
       const params: unknown[] = [];
-      if (targetServerId) {
-        pitfallQuery += ' WHERE server_id = ?';
-        params.push(targetServerId);
+      if (allowedServerIds.size > 0) {
+        const pids = Array.from(allowedServerIds);
+        pitfallQuery += ` WHERE server_id IN (${pids.map(() => '?').join(',')})`;
+        params.push(...pids);
       }
       pitfallQuery += ' ORDER BY created_at DESC';
       const pitfallRows = await db.prepare(pitfallQuery).bind(...params).all<DBServerPitfall>();
       for (const p of pitfallRows.results) {
         const s = serverMap.get(p.server_id);
+        const isPeerProvider = targetServerId && p.server_id !== targetServerId && targetProvider && s?.provider?.trim() === targetProvider;
         let tags: string[] = [];
         if (p.tags) {
           try { tags = typeof p.tags === 'string' ? JSON.parse(p.tags) : p.tags; } catch {}
         }
+        if (s?.provider) tags.push(s.provider);
         items.push({
           id: p.id,
           source_type: 'pitfall',
           server_id: p.server_id,
           server_name: s ? s.name : '未知节点',
           server_host: s ? s.host : '',
-          title: p.title,
+          title: isPeerProvider ? `[${targetProvider}共享避坑] ${p.title}` : p.title,
           problem_summary: p.description,
           workaround_or_content: p.workaround,
           severity: p.severity || 'warning',
@@ -856,7 +1009,8 @@ export async function searchTroubleshootingKnowledgeRAG(
   // 3. Fetch server remarks and notes
   if (targetCategory === 'all' || targetCategory === 'note') {
     for (const s of servers) {
-      if (targetServerId && s.id !== targetServerId) continue;
+      if (allowedServerIds.size > 0 && !allowedServerIds.has(s.id)) continue;
+      const isPeerProvider = targetServerId && s.id !== targetServerId && targetProvider && s.provider?.trim() === targetProvider;
       // Server remarks (s.notes)
       if (s.notes && s.notes.trim().length > 0) {
         items.push({
@@ -865,11 +1019,11 @@ export async function searchTroubleshootingKnowledgeRAG(
           server_id: s.id,
           server_name: s.name,
           server_host: s.host,
-          title: `服务器 [${s.name}] 综合运维备注与配置备忘`,
+          title: isPeerProvider ? `[${targetProvider}共享备注] 服务器 [${s.name}] 运维备忘` : `服务器 [${s.name}] 综合运维备注与配置备忘`,
           problem_summary: `节点特有环境与配置提示 (${s.host}:${s.port})`,
           workaround_or_content: s.notes,
           severity: 'info',
-          tags: ['server-notes', s.os_hint || 'linux'].filter(Boolean),
+          tags: ['server-notes', s.provider || '', s.os_hint || 'linux'].filter(Boolean),
           agent: 'system',
           created_at: s.updated_at,
           score: 0,
@@ -882,42 +1036,52 @@ export async function searchTroubleshootingKnowledgeRAG(
     try {
       let notesQuery = 'SELECT * FROM server_notes';
       const params: unknown[] = [];
-      if (targetServerId) {
-        notesQuery += ' WHERE server_id = ?';
-        params.push(targetServerId);
+      if (allowedServerIds.size > 0) {
+        const pids = Array.from(allowedServerIds);
+        notesQuery += ` WHERE server_id IN (${pids.map(() => '?').join(',')})`;
+        params.push(...pids);
       }
       const noteRows = await db.prepare(notesQuery).bind(...params).all<DBServerNote>();
       for (const n of noteRows.results) {
         const s = serverMap.get(n.server_id);
+        const isPeerProvider = targetServerId && n.server_id !== targetServerId && targetProvider && s?.provider?.trim() === targetProvider;
         items.push({
           id: `topic-note-${n.server_id}-${n.topic}`,
           source_type: 'server_topic_note',
           server_id: n.server_id,
           server_name: s ? s.name : '未知节点',
           server_host: s ? s.host : '',
-          title: `[${s ? s.name : n.server_id}] 专题笔记: ${n.topic}`,
+          title: isPeerProvider ? `[${targetProvider}共享笔记] [${s ? s.name : n.server_id}] 专题: ${n.topic}` : `[${s ? s.name : n.server_id}] 专题笔记: ${n.topic}`,
           problem_summary: `针对主题 [${n.topic}] 的专属运维/配置规范`,
           workaround_or_content: n.content,
           severity: 'info',
-          tags: ['topic-note', n.topic],
+          tags: ['topic-note', n.topic, s?.provider || ''].filter(Boolean),
           agent: n.updated_by,
           created_at: n.updated_at,
           score: 0,
           relevance_reasons: [],
         });
       }
-    } catch {}
+    } catch (e) {
+      console.warn('searchTroubleshootingKnowledgeRAG fetch notes error:', e);
+    }
   }
 
   // 4. Fetch backup indexes
   if (targetCategory === 'all' || targetCategory === 'backup') {
     try {
-      const backups = await listBackupIndexes(db, targetServerId ? { server_host: serverMap.get(targetServerId)?.host } : undefined);
+      const backups = await listBackupIndexes(db);
       for (const b of backups) {
+        if (targetServerId) {
+          const s = serverMap.get(targetServerId);
+          if (s && b.server_host !== s.host && (!allowedServerIds.has(b.server_id || ''))) {
+            continue;
+          }
+        }
         items.push({
-          id: b.id,
+          id: `backup-${b.id}`,
           source_type: 'backup_index',
-          server_id: b.server_id,
+          server_id: b.server_id || null,
           server_name: b.server_host,
           server_host: b.server_host,
           title: `备份产出: ${b.session_name} (${b.summary})`,
@@ -976,6 +1140,15 @@ export async function searchTroubleshootingKnowledgeRAG(
         score += 10;
         reasons.push(`匹配全文特征: "${token}"`);
       }
+    }
+
+    // Provider & target server boosting
+    if (targetServerId && item.server_id === targetServerId) {
+      score += 40;
+      reasons.push('精确命中目标服务器');
+    } else if (targetProvider && item.server_id && serverMap.get(item.server_id)?.provider?.trim() === targetProvider) {
+      score += 25;
+      reasons.push(`来自同运营商 [${targetProvider}] 共享经验`);
     }
 
     // Weight by severity

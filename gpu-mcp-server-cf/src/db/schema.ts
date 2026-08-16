@@ -1,6 +1,7 @@
 export interface DBServer {
   id: string;
   name: string;
+  provider?: string | null; // e.g. "AutoDL", "RunPod", "Vast.ai", "阿里云", "腾讯云", "恒源云", "自建机房"
   vendor_url: string | null;
   host: string;
   port: number;
@@ -47,6 +48,10 @@ export interface DBServer {
   cuda_version: string | null;     // driver CUDA, e.g. "12.4"
   top_cpu_tasks: string | null;    // JSON array [{cpu:number, mem:number, cmd:string}] — live top-3 by CPU
   datasets?: string | null;        // JSON array [{name:string, path:string, size_gb:number}]
+  mount_points?: string | null;    // JSON array [{mount:string, total_gb:number, free_gb:number, is_primary?:boolean, is_root?:boolean}]
+  primary_data_dir?: string | null;// e.g. "/root/autodl-tmp" or "/workspace" or "/data"
+  environments?: string | null;    // JSON array [{name:string, type:string, path:string, python_version?:string, torch_version?:string, cuda_version?:string, packages?:string[], activate_cmd?:string, is_primary?:boolean}]
+  primary_env_cmd?: string | null; // e.g. "source /root/miniconda3/bin/activate base"
   is_jump_host?: number;           // 1 = jump host / bastion for status probe & SSH jump, 0 = normal server
   created_at: string;
   updated_at: string;
@@ -122,6 +127,9 @@ export interface DBServerNote {
   server_id: string;
   topic: string;
   content: string;
+  provider?: string | null;
+  is_shared?: boolean;
+  source_server_name?: string;
   updated_by: string | null;
   updated_at: string;
 }
@@ -129,12 +137,16 @@ export interface DBServerNote {
 export interface DBServerPitfall {
   id: string;
   server_id: string;
+  provider?: string | null;   // 归属运营商
+  is_shared?: boolean;        // 是否为同运营商共享的避坑沉淀
+  source_server_name?: string;// 来源服务器名称
+  source_server_host?: string;// 来源服务器主机
   title: string;              // 踩坑标题 (e.g. "PyTorch 与 CUDA 12.1 驱动兼容性问题")
   description: string;        // 踩坑详细现象 / 错误信息 / 表现特征
   workaround: string;         // 避坑方案 / 解决方案 / 建议规避指令
   severity?: 'info' | 'warning' | 'critical'; // 严重程度: info | warning (default) | critical
   tags?: string | null;       // JSON array (e.g. ["cuda", "torch", "oom"])
-  agent?: string | null;      // 记录人/Agent (e.g. "antigravity", "claude-code", "user")
+  agent?: string | null;      // 记录人/Agent标识
   created_at: string;
   updated_at: string;
 }

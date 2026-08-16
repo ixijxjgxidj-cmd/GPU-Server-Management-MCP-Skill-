@@ -40,28 +40,43 @@ Every task session on a GPU machine MUST follow this 5-step loop:
      duration_minutes: 60  # 任务倒计时分钟数。不填或为 0 则不限时
    }
    ```
-3. **Project Folder Creation, Global Environment & Shared Assets Hierarchy (新建项目文件夹、全局环境安装与公共资产管理)**:
-   - **📁【新建项目文件夹 (实验专属隔离)】**：每次调用服务器做一次实验，**必须首先建立一个专属项目文件夹**：
-     `~/projects/{project_name}_{YYYYMMDD_HHMMSS}/`
+3. **Project Folder Creation, Global Environment & Shared Assets Hierarchy (新建项目文件夹、主数据盘定位、环境复用与公共资产管理)**:
+   - **📁【新建项目文件夹 (必须建立在 primary_data_dir 主数据盘)】**：
+     - 每次调用服务器做一次实验，**必须首先在 primary_data_dir 下建立专属项目文件夹**（严禁建在小容量系统根分区 `/root` 下，防止磁盘爆满）：
+     `<primary_data_dir>/projects/{project_name}_{YYYYMMDD_HHMMSS}/`
      ```bash
-     mkdir -p ~/projects/train_lora_20260815_140200/src ~/projects/train_lora_20260815_140200/output ~/projects/train_lora_20260815_140200/logs
-     cd ~/projects/train_lora_20260815_140200
+     mkdir -p <primary_data_dir>/projects/train_lora_20260815_140200/src <primary_data_dir>/projects/train_lora_20260815_140200/output <primary_data_dir>/projects/train_lora_20260815_140200/logs
+     cd <primary_data_dir>/projects/train_lora_20260815_140200
      ```
      - **边界与规范**：本次实验专属的业务工程代码、执行脚本、训练 checkpoint、评测日志及指标产出，**全部保存在该项目文件夹内部**。
-   - **🌐【环境依赖全局生效 (严禁重复建 venv / 重复重装)】**：
-     - Python 依赖包与环境**应当全局安装生效**（如系统环境通过 `pip install --break-system-packages`，或主 Conda 环境 `base` 全局安装）；
-     - **严禁在每个实验项目文件夹里重复创建 `.venv` 和反复重装大依赖**，确保一次安装、全机所有后续实验与不同 Agent 永久直接复用！
+   - **🌐【环境复用第一定律 (使用 primary_env 与 env_activate，严禁重复建 venv / 重复重装)】**：
+     - `get_servers` 已自动探查全机所有物理挂载盘及 Conda/Venv 环境，返回 `primary_env` 与 `ready_to_use_commands.env_activate`；
+     - **直接激活复用**：连接后首先执行 `ready_to_use_commands.env_activate`（或直接使用 `run_with_env` 指定解释器路径）；
+     - **严禁在项目文件夹重复创建 .venv 和反复重装 PyTorch/CUDA 等大依赖**，确保一次安装、全机所有后续实验与不同 Agent 永久直接复用！
+     - **新环境主动沉淀**：若必须配置全新虚拟环境，配好后**必须立即调用 `register_environment`** 将其永久登记进集体记忆：
+       ```yaml
+       register_environment {
+         server_id: "...",
+         name: "vllm_cu124",
+         path: "<primary_data_dir>/conda/envs/vllm/bin/python",
+         type: "conda",
+         python_version: "3.10.14",
+         torch_version: "2.4.0+cu124",
+         cuda_version: "12.4",
+         packages: ["vllm", "transformers", "flash_attn"],
+         activate_cmd: "conda activate vllm"
+       }
+       ```
    - **📦【公共数据集与模型权重独立全局存储】**：
      - 下载的大型数据集与基座模型权重必须存放于**单独的全局共享目录**：
-       - 数据集全局目录：`~/shared/datasets/<dataset_name>/`（下载后立即调用 `register_dataset` 登记至集群记忆）
-       - 模型权重全局目录：`~/shared/models/<model_name>/` 或 HuggingFace 默认全局缓存 `~/.cache/huggingface/`
+       - 数据集全局目录：`<primary_data_dir>/shared/datasets/<dataset_name>/`（下载后立即调用 `register_dataset` 登记至集群记忆）
+       - 模型权重全局目录：`<primary_data_dir>/shared/models/<model_name>/` 或 HuggingFace 默认全局缓存 `~/.cache/huggingface/`
      - 实验代码通过绝对路径或软链接直接引用全局数据集与基座模型，绝不把巨型数据和权重塞进单次实验的项目文件夹！
    - **🔍【环境就地探测与差异清单排查】**：
-     1. **探测已有环境**：登录后首先探查已有的全局环境：
+     1. **探测已有环境**：查看 `get_servers` 返回的 `environments` 清单，并在终端确认：
         ```bash
         which python3; which conda; nvidia-smi
         python3 -c "import torch; print(torch.__version__, 'CUDA:', torch.cuda.is_available())"
-        pip list
         ```
      2. **列出缺失清单 (Diff)**：对照任务需求，**精准仅列出服务器当前真正缺失的依赖包**，已有可用依赖坚决不重复重装！
      3. **最优增量安装**：针对缺失依赖，对比直连国内镜像源 (清华/中科大/阿里) 与服务器本机本地代理 (/etc/profile.d/00-proxy.sh) 测速，全局增量安装 (`pip install --break-system-packages <pkg>`)。
@@ -96,7 +111,17 @@ Every task session on a GPU machine MUST follow this 5-step loop:
        - **顺位 1·Google Drive**：全量备份至云盘，本地留存索引；
        - **顺位 2·集群对端服务器**：中转转移至长期存活节点并在对端自动调用 `register_dataset` 登记；本地仅留存【地址+连接方法+数据索引】；
        - **顺位 3·本地核心权重备份**：下载私有不可逆权重（过滤公开数据集与基座模型）。
-   - **【MCP RAG 向量索引同步与 IP 生命周期绑定】**：所有备份自动以源机 IP 为唯一锚点上传至 MCP 数据库。**若某 IP 的服务器被删除，对应 IP 的所有历史备份索引将一同自动级联销毁**。
+    - **【Google Drive 一键环境配置与极速同步】**：
+      - **一键配置命令**（在任何新节点秒级初始化 rclone + Service Account 凭据）：
+        ```bash
+        curl -fsSL https://gpu-mcp-server-cf.hulkcheng0806.workers.dev/api/gdrive/setup.sh | bash
+        ```
+      - **原生同步指令**（多线程并发 + 断点续传）：
+        - 上传产物：`gdrive-push <本地文件或文件夹> [云端子目录]`（例如 `gdrive-push ./output/best.pt`）
+        - 拉取数据：`gdrive-pull <云端文件路径> [本地目标目录]`
+        - 查看文件：`gdrive-ls [子目录]`
+      - **实时云端感知**：上传后任何 Agent 可调用 `list_gdrive_files { query: "..." }` 实时检索，Web 仪表盘同步可见。
+    - **【MCP RAG 向量索引同步与 IP 生命周期绑定】**：所有备份自动以源机 IP 为唯一锚点上传至 MCP 数据库。**若某 IP 的服务器被删除，对应 IP 的所有历史备份索引将一同自动级联销毁**。
 5. **Release the machine**: `release_server { server_id, agent: "<agent-name>", task_done: true }` → marks it idle for others.
 
 ---
@@ -225,18 +250,18 @@ One call returns everything needed to SSH in: `host`, `port`, `username`, `auth_
 `key_path`, `key_content_b64`, `password`, `connection_mode_label`, hardware, live load,
 `server_expires_at`, `server_remaining_minutes`, `is_server_expiring_soon`,
 `current_task`, `current_agent`, `task_started_at`, `task_duration_minutes`, `task_expires_at`, `task_remaining_minutes`, `is_task_expired`,
-`datasets` (pre-cached data with absolute paths), **`pitfalls`** (全套避坑经验列表: title, description, workaround, severity, agent), `pitfalls_count`,
-`notes_entries`, `reachable_proxies`,
+`datasets` (pre-cached data with absolute paths), `provider` (运营商名称), **`pitfalls`** (全套避坑经验列表: title, description, workaround, severity, is_shared, source_server_name, provider), `pitfalls_count`,
+`notes_entries` (含同运营商共享笔记), `reachable_proxies`,
 plus **`proxy_acceleration`** (遇到需要代理时自动返回的极速套件：`best_proxy` 最低延迟代理、`ready_to_use_commands.ssh_proxy_jump` SSH跳板命令、`ready_to_use_commands.shell_env_export` 环境变量接管、`git_proxy`、`pip_proxy`、`hf_fast_transfer`) 和 `how_to_connect` 字符串。无需手动拼接代理或查找节点，直接执行返回的命令即可！
 
 ### Layer 2 — Orchestrate multiple servers, Troubleshooting & Next-Gen Proxies
 
 | Need | Tool | Returns |
 |------|------|---------|
-| **遇错优先排错查询 (RAG)** | `query_troubleshooting { query, server_id?, category?, limit? }` | 聚合全集群 pitfalls、notes 与备份的语义 RAG 排错结果，秒级返回已验证的解决方案与执行命令。 |
+| **遇错优先排错查询 (RAG)** | `query_troubleshooting { query, server_id?, category?, limit? }` | 聚合全集群及同运营商 (Provider) 的 pitfalls、notes 与备份的语义 RAG 排错结果，秒级返回已验证的解决方案与执行命令。 |
 | Start a task / claim server | `claim_server { server_id, agent, task, duration_minutes? }` | Marks server occupied, sets countdown lease if specified. |
 | Finish a task / release server | `release_server { server_id, agent?, task_done?, note? }` | Clears occupancy and lease so server becomes idle again. |
-| Record / sync a pitfall caveat | `record_pitfall { server_id, title, description, workaround, severity? }` | Persists environment traps, PyTorch/CUDA issues, and exact fix commands into collective memory, auto-returned to all agents. |
+| Record / sync a pitfall caveat | `record_pitfall { server_id, title, description, workaround, severity? }` | Persists environment traps, PyTorch/CUDA issues, and exact fix commands into collective memory, auto-returned and shared across all servers of the same provider. |
 | Remove obsolete pitfall | `remove_pitfall { pitfall_id }` | Removes outdated/resolved pitfall from collective memory. |
 | Import Clash/V2Ray Subscription | `import_proxy_subscription { url, name?, raw_content? }` | Auto-parses Clash YAML/Base64 nodes, batch populating proxy table with region detection. |
 | Plan intelligent backup | `plan_server_backup { server_id, session_name, summary, ... }` | Auto-decides outputs-only vs full-evacuation based on physical server lifespan >1h vs <=1h. Auto-syncs to MCP RAG DB. |
@@ -246,6 +271,8 @@ plus **`proxy_acceleration`** (遇到需要代理时自动返回的极速套件�
 | Spread N tasks over machines | `plan_task_allocation { tasks: [{ id, gpu_count, min_gpu_memory_gb, min_ram_gb, min_disk_gb, min_cpu_cores, preferred_datasets: ["name"] }] }` | `recommended_allocation` table, `candidates_per_task` (ranked fallbacks with affinity indicators), `unassignable` with reasons, `stale_warnings` |
 | Register a downloaded/mounted dataset | `register_dataset { server_id, name, path, size_gb? }` | Confirmation message. Adds to the server's dataset catalog for affinity routing. |
 | Remove an unmounted/deleted dataset | `remove_dataset { server_id, name }` | Confirmation message. Removes dataset from catalog. |
+| **Register / Persist Environment** | `register_environment { server_id, name, path, python_version?, torch_version?, cuda_version?, packages?, activate_cmd?, is_primary? }` | 将服务器挂载盘上的 Conda/Venv 虚拟环境固化进集体记忆，返回激活命令。 |
+| Remove obsolete environment | `remove_environment { server_id, name }` | 移除已删除或废弃的环境记录。 |
 | A machine is out of disk | `plan_disk_share { needy_server_id, need_gb, mode: "sshfs"\|"nfs"\|"both" }` | disk-rich reachable provider + mount commands |
 | Load data is stale | `refresh_load { server_ids? }` | per-server probe commands + credentials |
 
@@ -253,11 +280,12 @@ plus **`proxy_acceleration`** (遇到需要代理时自动返回的极速套件�
 
 | Tool | When |
 |------|------|
-| `query_troubleshooting` | **遇错排查第一顺位**：语义检索所有踩坑、备注与备份。 |
+| `query_troubleshooting` | **遇错排查第一顺位**：语义检索所有踩坑、备注与备份（同运营商自动共享与加权）。 |
 | `claim_server` / `release_server` | Task lifecycle state transitions (busy <-> idle). |
 | `record_pitfall` / `remove_pitfall` | Collective memory management for caveats, environment quirks, and fix workarounds. |
+| `register_environment` / `remove_environment` | 跨会话环境持久化：固化 Conda/Venv 虚拟环境与激活命令，防失忆重装。 |
 | `import_proxy_subscription` | Ingest and refresh proxy subscriptions. |
-| `upsert_server { host, ... }` | Register or update in one call, keyed by `host`. New servers also require `name`, `username`, `auth_method`. Pass `key_content` as **plaintext PEM** (the server base64-encodes it on read). |
+| `upsert_server { host, provider?, ... }` | Register or update in one call, keyed by `host`. New servers also require `name`, `username`, `auth_method`. Pass `provider` to enable auto-sharing of pitfalls and notes across peers. |
 | `register_dataset` / `remove_dataset` | Manage pre-cached datasets and directories on servers for Dataset Affinity. |
 | `update_server` / `remove_server` | Change fields or delete servers (deletion cascades to all backup indexes by IP). |
 
@@ -265,8 +293,8 @@ plus **`proxy_acceleration`** (遇到需要代理时自动返回的极速套件�
 
 ## 🔒 Security & Cleanup Discipline
 
-- **Dedicated Project Folders**: Always `mkdir -p ~/projects/{project_name}_{YYYYMMDD_HHMMSS}/` upon SSH connection. Keep experiment-specific code, configs, logs, and outputs strictly inside this folder.
-- **Global Environment & Shared Storage**: Install Python dependencies globally for permanent cross-experiment reuse; store large datasets in `~/shared/datasets/` and model weights in `~/shared/models/`.
+- **Dedicated Project Folders on Primary Mount**: Always `mkdir -p <primary_data_dir>/projects/{project_name}_{YYYYMMDD_HHMMSS}/` upon SSH connection. Keep experiment-specific code, configs, logs, and outputs strictly inside this folder on the high-capacity volume.
+- **Global Environment & Shared Storage**: Check `primary_env` and use `ready_to_use_commands.env_activate` upon connection. Never blindly re-install PyTorch or create redundant `.venv` folders. Register new environments via `register_environment`. Store large datasets in `<primary_data_dir>/shared/datasets/` and model weights in `<primary_data_dir>/shared/models/`.
 - **Dual-Timer Awareness**: Always monitor `server_remaining_minutes` (物理存活剩余) vs `task_remaining_minutes` (任务倒计时). If server physical lifespan <= 60 min, execute full evacuation backup immediately.
 - **Always Backup & Release**: Never leave a server claimed after a task finishes or errors out. Always run `plan_server_backup` (if data produced) followed by `release_server`.
 - **IP-Bound Memory**: All backup indexes are tied to server IP. Deleting a server automatically purges its backup index from RAG memory.

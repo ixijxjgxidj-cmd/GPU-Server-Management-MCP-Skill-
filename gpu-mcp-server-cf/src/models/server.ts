@@ -38,6 +38,7 @@ export interface ServerTaskInfo {
 export interface ServerDetail {
   id: string;
   name: string;
+  provider?: string | null;
   vendor_url: string | null;
   host: string;
   port: number;
@@ -61,6 +62,10 @@ export interface ServerDetail {
   task: ServerTaskInfo;
   is_jump_host?: boolean;
   notes: string | null;
+  mount_points?: string | null;
+  primary_data_dir?: string | null;
+  environments?: string | null;
+  primary_env_cmd?: string | null;
   enabled: boolean;
   created_at: string;
   updated_at: string;
@@ -90,6 +95,7 @@ export function dbServerToDetail(
   return {
     id: db.id,
     name: db.name,
+    provider: db.provider ?? null,
     vendor_url: db.vendor_url,
     host: db.host,
     port: db.port,
@@ -125,6 +131,10 @@ export function dbServerToDetail(
     },
     is_jump_host: db.is_jump_host === 1,
     notes: db.notes,
+    mount_points: db.mount_points ?? null,
+    primary_data_dir: db.primary_data_dir ?? null,
+    environments: db.environments ?? null,
+    primary_env_cmd: db.primary_env_cmd ?? null,
     enabled: db.enabled === 1,
     created_at: db.created_at,
     updated_at: db.updated_at,

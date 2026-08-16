@@ -907,6 +907,9 @@ export const HTML = `<!DOCTYPE html>
       if (s.is_jump_host === 1 || s.is_jump_host === true) {
         addInfoRow('角色', '<span style="color:#facc15;font-weight:600;">🔀 状态探针与中转跳板机</span>', true);
       }
+      if (s.provider) {
+        addInfoRow('运营商', '<span style="display:inline-block;padding:2px 8px;border-radius:4px;background:rgba(99,102,241,0.15);color:#818cf8;border:1px solid rgba(99,102,241,0.3);font-size:11px;font-weight:600;">🏷️ ' + escHtml(s.provider) + ' (知识共享)</span>', true);
+      }
       addInfoRow('地址', s.host+':'+s.port);
       addInfoRow('连接', (s.connection_type === 'cloudflare_tunnel') ? '☁️ CF隧道' : (s.connection_mode_label || '标准SSH'));
       addInfoRow('GPU', s.gpu_model||'N/A');
@@ -2427,6 +2430,7 @@ export const HTML = `<!DOCTYPE html>
       setVal('add-gpu-mem', d.gpu_memory_gb || '');
       setVal('add-cpu', d.cpu_cores || '');
       setVal('add-ram', d.ram_gb || '');
+      if (d.provider) setVal('add-provider', d.provider);
       if (d.vendor_url) setVal('add-vendor-url', d.vendor_url);
       if (d.notes) setVal('add-notes', d.notes);
       var jumpEl = document.getElementById('add-is-jump-host');
@@ -2483,7 +2487,7 @@ export const HTML = `<!DOCTYPE html>
         '  <input type="file" accept="image/*" multiple style="display:none" id="img-input" onchange="handleImageFiles(this)">' +
         '</div>' +
         // Form section
-        '<div class="form-group"><label>名称</label><input id="add-name" placeholder="my-gpu-server"></div>' +
+        '<div class="form-row"><div class="form-group"><label>名称</label><input id="add-name" placeholder="my-gpu-server"></div><div class="form-group"><label>运营商 / Provider (用于避坑共享)</label><input id="add-provider" list="provider-options" placeholder="AutoDL / RunPod / 阿里云 / 恒源云..."><datalist id="provider-options"><option value="AutoDL"><option value="RunPod"><option value="Vast.ai"><option value="阿里云"><option value="腾讯云"><option value="恒源云"><option value="极智云"><option value="华为云"><option value="Lambda"><option value="AWS"><option value="自建机房"></datalist></div></div>' +
         '<div id="conn-standard-row"><div class="form-row"><div class="form-group"><label>地址</label><input id="add-host" placeholder="192.168.1.100"></div><div class="form-group"><label>SSH端口</label><input id="add-port" value="22"></div></div></div>' +
         '<div id="conn-tunnel-row" style="display:none"><div class="form-group"><label>隧道域名</label><input id="add-tunnel-host" placeholder="ssh.example.com"></div><div class="form-group" style="margin-top:6px;padding:8px 12px;border-radius:6px;border:1px dashed var(--border);font-size:12px;color:var(--text-2)">☁️ 客户机需先安装 cloudflared 并执行 <code>cloudflared login</code>，连接时用 <code>ssh -o ProxyCommand="cloudflared access ssh --hostname %h" user@隧道域名</code></div></div>' +
         '<div class="form-row"><div class="form-group"><label>用户名</label><input id="add-user" value="root"></div><div class="form-group"><label>认证</label><select id="add-auth-method"><option value="key">SSH密钥</option><option value="password">密码</option></select></div></div>' +
@@ -2623,10 +2627,12 @@ export const HTML = `<!DOCTYPE html>
       }
       var keyContentEl = document.getElementById('add-key-content');
       var passwordEl = document.getElementById('add-password');
+      var providerEl = document.getElementById('add-provider');
       var vendorUrlEl = document.getElementById('add-vendor-url');
       var authMethod = document.getElementById('add-auth-method').value;
       const serverData = {
         name: document.getElementById('add-name').value, host: host, port: port,
+        provider: providerEl ? (providerEl.value.trim()||null) : null,
         username: document.getElementById('add-user').value, auth_method: authMethod,
         key_content: (authMethod === 'key' && keyContentEl) ? keyContentEl.value : null,
         password: (authMethod === 'password' && passwordEl) ? passwordEl.value : null,
@@ -3114,7 +3120,8 @@ export const HTML = `<!DOCTYPE html>
           + '<h2 style="margin:0;font-size:20px;color:#fff;display:flex;align-items:center;gap:8px;">⚠️ ' + escHtml(s.name) + ' 踩坑与避坑指南</h2>'
           + '<span style="font-size:12px;padding:3px 10px;border-radius:12px;background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.3);font-weight:600;">' + pitfallList.length + ' 条经验</span>'
           + '</div>'
-          + '<div style="font-size:13px;color:var(--text-dim);margin-top:6px;line-height:1.5;">沉淀此机器上的所有环境陷阱、驱动/库冲突、网络阻断及正确规避指令。调用 <code>get_servers</code> 时将随服务器信息自动返回给所有 Agent。</div>';
+          + (s.provider ? '<div style="font-size:12px;color:#818cf8;margin-top:4px;font-weight:600;">🏷️ 归属运营商: ' + escHtml(s.provider) + ' (已自动共享聚合全网同运营商机器的历史避坑)</div>' : '')
+          + '<div style="font-size:13px;color:var(--text-dim);margin-top:6px;line-height:1.5;">沉淀此机器及同运营商所有环境陷阱、驱动/库冲突、网络阻断及正确规避指令。调用 <code>get_servers</code> 时将随服务器信息自动返回给所有 Agent。</div>';
         modalContent.appendChild(header);
 
         // List Container
@@ -3149,6 +3156,14 @@ export const HTML = `<!DOCTYPE html>
             titleSpan.style.cssText = 'font-weight:700;font-size:15px;color:#fff;';
             titleSpan.textContent = p.title;
             titleLeft.appendChild(titleSpan);
+
+            // Shared badge
+            if (p.is_shared) {
+              const sharedBadge = document.createElement('span');
+              sharedBadge.style.cssText = 'padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700;background:rgba(99,102,241,0.18);color:#818cf8;border:1px solid rgba(99,102,241,0.35);';
+              sharedBadge.textContent = '🌐 ' + (p.provider || '运营商') + ' 共享 (' + (p.source_server_name || '同类节点') + ')';
+              titleLeft.appendChild(sharedBadge);
+            }
 
             // Severity Badge
             const sevBadge = document.createElement('span');
@@ -3371,6 +3386,7 @@ export const HTML = `<!DOCTYPE html>
         addInput('CPU核数', 'edit-cpu', 'number', s.capabilities?.cpu_cores||s.cpu_cores||'');
         addInput('内存(GB)', 'edit-ram', 'number', s.capabilities?.ram_gb||s.ram_gb||'');
         addInput('磁盘(GB)', 'edit-disk', 'number', s.capabilities?.disk_gb||s.disk_gb||'');
+        addInput('运营商 (Provider)', 'edit-provider', 'text', s.provider||'', 'AutoDL / RunPod / 阿里云 / 恒源云 (相同运营商共享避坑与笔记)');
         addInput('厂商URL', 'edit-vendor-url', 'text', s.vendor_url||'');
         
         // Physical lease expiration
@@ -3417,6 +3433,7 @@ export const HTML = `<!DOCTYPE html>
       var expiresAtVal = document.getElementById('edit-server-expires-at') ? document.getElementById('edit-server-expires-at').value : '';
       var updates = {
         name: document.getElementById('edit-name').value,
+        provider: document.getElementById('edit-provider') ? (document.getElementById('edit-provider').value.trim()||null) : null,
         host: document.getElementById('edit-host').value,
         port: document.getElementById('edit-port') ? (parseInt(document.getElementById('edit-port').value)||22) : 22,
         username: document.getElementById('edit-user').value,
