@@ -144,6 +144,9 @@ export function dbServerToDetail(
 export interface LocalProxyInfo {
   deployed: boolean;
   type: 'sing-box' | 'v2ray' | 'clash' | 'other' | null;
+  http_port?: number;
+  socks_port?: number;
+  proxy_url?: string;
   usage: string | null;
 }
 
@@ -235,13 +238,14 @@ export function detectLocalProxy(s: {
     ? (() => { try { return JSON.parse(s.tags); } catch { return []; } })()
     : [];
 
-  const notesText = (s.notes || '').toLowerCase();
+  const rawNotes = s.notes || '';
+  const notesText = rawNotes.toLowerCase();
   const tagsLower = tagsArr.map(t => String(t).toLowerCase());
 
   let hasSingBox = tagsLower.includes('sing-box') || notesText.includes('sing-box');
   let hasV2Ray = tagsLower.includes('v2ray') || notesText.includes('v2ray') || s.v2ray_available === 1 || s.v2ray_available === true;
   let hasClash = tagsLower.includes('clash') || notesText.includes('clash');
-  let hasProxy = tagsLower.includes('proxy') || tagsLower.includes('global-proxy') || notesText.includes('10809') || notesText.includes('00-proxy.sh');
+  let hasProxy = tagsLower.includes('proxy') || tagsLower.includes('global-proxy') || tagsLower.includes('proxy-configured') || notesText.includes('00-proxy.sh');
 
   if (s.top_cpu_tasks) {
     const tasks = Array.isArray(s.top_cpu_tasks)
@@ -257,11 +261,36 @@ export function detectLocalProxy(s: {
     }
   }
 
+  // Parse actual ports from notes if present
+  let httpPort = hasClash ? 7890 : 10809;
+  let socksPort = hasClash ? 7890 : 10808;
+
+  const httpMatch = rawNotes.match(/(?:http|http_proxy|127\.0\.0\.1:?)[:\s/]*(\d{4,5})/i);
+  if (httpMatch && httpMatch[1]) {
+    const parsed = parseInt(httpMatch[1], 10);
+    if (parsed >= 1080 && parsed <= 65535 && parsed !== 8881 && parsed !== 44438 && parsed !== 55696 && parsed !== 40037 && parsed !== 10683 && parsed !== 30022) {
+      httpPort = parsed;
+    }
+  }
+
+  const socksMatch = rawNotes.match(/(?:socks|socks5|all_proxy)[:\s/]*(\d{4,5})/i);
+  if (socksMatch && socksMatch[1]) {
+    const parsed = parseInt(socksMatch[1], 10);
+    if (parsed >= 1080 && parsed <= 65535 && parsed !== 8881 && parsed !== 44438 && parsed !== 55696 && parsed !== 40037 && parsed !== 10683 && parsed !== 30022) {
+      socksPort = parsed;
+    }
+  }
+
+  const proxyUrl = `http://127.0.0.1:${httpPort}`;
+
   if (hasSingBox) {
     return {
       deployed: true,
       type: 'sing-box',
-      usage: 'source /etc/profile.d/00-proxy.sh (HTTP: 127.0.0.1:10809, SOCKS5: 127.0.0.1:10808, proxy-mode on/off)',
+      http_port: httpPort,
+      socks_port: socksPort,
+      proxy_url: proxyUrl,
+      usage: `source /etc/profile.d/00-proxy.sh (HTTP: 127.0.0.1:${httpPort}, SOCKS5: 127.0.0.1:${socksPort}, proxy-mode on/off)`,
     };
   }
 
@@ -269,7 +298,10 @@ export function detectLocalProxy(s: {
     return {
       deployed: true,
       type: 'v2ray',
-      usage: 'export http_proxy="http://127.0.0.1:10809" https_proxy="http://127.0.0.1:10809" ALL_PROXY="socks5://127.0.0.1:10808"',
+      http_port: httpPort,
+      socks_port: socksPort,
+      proxy_url: proxyUrl,
+      usage: `export http_proxy="${proxyUrl}" https_proxy="${proxyUrl}" ALL_PROXY="socks5://127.0.0.1:${socksPort}"`,
     };
   }
 
@@ -277,7 +309,10 @@ export function detectLocalProxy(s: {
     return {
       deployed: true,
       type: 'clash',
-      usage: 'export http_proxy="http://127.0.0.1:7890" https_proxy="http://127.0.0.1:7890" ALL_PROXY="socks5://127.0.0.1:7890"',
+      http_port: httpPort,
+      socks_port: socksPort,
+      proxy_url: proxyUrl,
+      usage: `export http_proxy="${proxyUrl}" https_proxy="${proxyUrl}" ALL_PROXY="socks5://127.0.0.1:${socksPort}"`,
     };
   }
 
@@ -285,7 +320,10 @@ export function detectLocalProxy(s: {
     return {
       deployed: true,
       type: 'other',
-      usage: 'source /etc/profile.d/00-proxy.sh (或 export http_proxy="http://127.0.0.1:10809")',
+      http_port: httpPort,
+      socks_port: socksPort,
+      proxy_url: proxyUrl,
+      usage: `source /etc/profile.d/00-proxy.sh (或 export http_proxy="${proxyUrl}")`,
     };
   }
 
@@ -316,7 +354,7 @@ export function resolveServerGoogleDriveStatus(
   }
 
   if (localProxy.deployed) {
-    const proxyUrl = localProxy.type === 'clash' ? 'http://127.0.0.1:7890' : 'http://127.0.0.1:10809';
+    const proxyUrl = localProxy.proxy_url || (localProxy.type === 'clash' ? 'http://127.0.0.1:7890' : 'http://127.0.0.1:10809');
     return {
       enabled: true,
       status_label: `🟢 国内节点已部署 ${localProxy.type || '本地'} 出海代理 (${proxyUrl})，Google Drive 自动走代理加速`,
