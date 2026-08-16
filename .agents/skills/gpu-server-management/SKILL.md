@@ -111,8 +111,12 @@ Every task session on a GPU machine MUST follow this 5-step loop:
        - **顺位 1·Google Drive**：全量备份至云盘，本地留存索引；
        - **顺位 2·集群对端服务器**：中转转移至长期存活节点并在对端自动调用 `register_dataset` 登记；本地仅留存【地址+连接方法+数据索引】；
        - **顺位 3·本地核心权重备份**：下载私有不可逆权重（过滤公开数据集与基座模型）。
-    - **【Google Drive 一键环境配置与极速同步】**：
-      - **一键配置命令**（在任何新节点秒级初始化 rclone + Service Account 凭据）：
+    - **【本地出海代理感知与 Google Drive 互联铁律】**：
+      - **代理部署感知**：`get_servers` 针对每台机器返回 `local_proxy_deployed: true/false`、`local_proxy_type` (如 sing-box/v2ray/clash)、`local_proxy_usage` (具体用法如 `source /etc/profile.d/00-proxy.sh`) 与 `is_china_mainland`。
+      - **国内节点 + 已配代理 (如 sing-box / 127.0.0.1:10809)**：Google Drive 自动走 sing-box 代理通道，`ready_to_use_commands.gdrive_setup` 自动注入代理配置。
+      - **国内节点 + 未配代理**：Google Drive **强制禁用 (`google_drive_enabled: false`)**，命令提示为 `echo "❌ 该服务器位于中国大陆且未部署本地出海代理 (如 sing-box)，Google Drive 已禁用。请先部署出海代理方可使用 Google Drive。"`。
+      - **海外节点**：Google Drive 默认直连高速读写。
+      - **一键配置命令**（在任何支持的节点秒级初始化 rclone + 凭据）：
         ```bash
         curl -fsSL https://gpu-mcp-server-cf.hulkcheng0806.workers.dev/api/gdrive/setup.sh | bash
         ```

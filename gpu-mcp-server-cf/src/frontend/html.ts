@@ -947,6 +947,30 @@ export const HTML = `<!DOCTYPE html>
       }
       addInfoRow('避坑经验', '<span onclick="showPitfallsModal(&quot;' + s.id + '&quot;)">' + pitfallBadge + '</span>', true);
 
+      // Proxy & Google Drive capability status
+      var tagsArr = Array.isArray(s.tags) ? s.tags : [];
+      var isChina = (s.is_china_mainland !== undefined) ? s.is_china_mainland : ((s.host||'').endsWith('.cn') || (s.host||'').includes('deepln') || (s.host||'').includes('scnet') || (s.host||'').includes('zakocloud') || (s.host||'').includes('virtaicloud'));
+      var isSingBox = tagsArr.includes('sing-box') || (s.notes||'').includes('sing-box') || s.local_proxy_type === 'sing-box';
+      var hasProxy = s.local_proxy_deployed || isSingBox || s.v2ray_available;
+
+      if (isSingBox) {
+        addInfoRow('出海代理', '<span style="color:#34d399;font-weight:600">🟢 sing-box 已部署 (10809)</span>', true);
+      } else if (hasProxy) {
+        addInfoRow('出海代理', '<span style="color:#34d399;font-weight:600">🟢 ' + escHtml(s.local_proxy_type || '本地代理') + ' 已部署</span>', true);
+      } else if (isChina) {
+        addInfoRow('出海代理', '<span style="color:#888">⚪ 未部署代理 (国内)</span>', true);
+      } else {
+        addInfoRow('出海代理', '<span style="color:#60a5fa">🌐 海外原生直连</span>', true);
+      }
+
+      if (!isChina) {
+        addInfoRow('Google Drive', '<span style="color:#34d399">🟢 直连可用</span>', true);
+      } else if (hasProxy) {
+        addInfoRow('Google Drive', '<span style="color:#34d399">🟢 走 sing-box 代理</span>', true);
+      } else {
+        addInfoRow('Google Drive', '<span style="color:#f87171" title="国内节点未部署代理，Google Drive 禁用">❌ 禁用 (需配出海代理)</span>', true);
+      }
+
       if (s.os_hint) addInfoRow('系统', s.os_hint);
       if (s.ssh_banner) {
         var ver = s.ssh_banner.match(/SSH-[\d.]+-([^\s]+)/);

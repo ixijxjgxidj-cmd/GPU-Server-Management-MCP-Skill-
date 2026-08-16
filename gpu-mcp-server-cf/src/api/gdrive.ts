@@ -54,10 +54,45 @@ app.get('/setup.sh', async (c) => {
 
   const saJson = JSON.stringify(config.serviceAccount, null, 2);
   const rootFolderId = config.rootFolderId || '1P255fLRCi6a44v0Ygrv1RvMyqxKh0b52';
+  const queryProxy = c.req.query('proxy') || '';
 
   const script = `#!/bin/bash
 set -e
 echo "🚀 开始在当前服务器自动配置 Google Drive (rclone) 环境..."
+
+# 0. 代理检测与生效 (sing-box / local proxy)
+PARAM_PROXY="${queryProxy}"
+LOCAL_PROXY=""
+
+if [ -n "$PARAM_PROXY" ]; then
+    LOCAL_PROXY="$PARAM_PROXY"
+elif [ -n "$http_proxy" ]; then
+    LOCAL_PROXY="$http_proxy"
+elif [ -f /etc/profile.d/00-proxy.sh ]; then
+    source /etc/profile.d/00-proxy.sh 2>/dev/null || true
+    LOCAL_PROXY="\${http_proxy:-http://127.0.0.1:10809}"
+elif command -v ss &>/dev/null && ss -tln | grep -qE ':10809 |:10808 '; then
+    LOCAL_PROXY="http://127.0.0.1:10809"
+elif command -v netstat &>/dev/null && netstat -tln | grep -qE ':10809 |:10808 '; then
+    LOCAL_PROXY="http://127.0.0.1:10809"
+elif command -v ss &>/dev/null && ss -tln | grep -q ':7890 '; then
+    LOCAL_PROXY="http://127.0.0.1:7890"
+fi
+
+if [ -n "$LOCAL_PROXY" ]; then
+    echo "🌐 检测到本地出海代理: $LOCAL_PROXY (Google Drive 将自动走代理通道)"
+    export http_proxy="$LOCAL_PROXY"
+    export https_proxy="$LOCAL_PROXY"
+    export ALL_PROXY="$LOCAL_PROXY"
+else
+    echo "ℹ️ 未检测到本地代理，正在测试 Google API 直连连通性..."
+    if ! curl -s --max-time 4 https://oauth2.googleapis.com >/dev/null 2>&1; then
+        echo ""
+        echo "❌ 错误: 该节点位于中国大陆且未部署本地出海代理 (如 sing-box / 127.0.0.1:10809)，无法连接 Google API！"
+        echo "⚠️ Google Drive 已禁用。请先在该服务器部署出海代理（如 sing-box）后方可配置 Google Drive。"
+        exit 1
+    fi
+fi
 
 mkdir -p ~/.config/rclone /etc/rclone /etc/gdrive
 
@@ -66,13 +101,25 @@ ${saJson}
 JSON_EOF
 chmod 600 /etc/gdrive/service_account.json
 
-cat << 'CONF_EOF' > ~/.config/rclone/rclone.conf
+# 写入 rclone 配置
+if [ -n "$LOCAL_PROXY" ]; then
+cat << CONF_EOF > ~/.config/rclone/rclone.conf
+[gdrive]
+type = drive
+scope = drive
+service_account_file = /etc/gdrive/service_account.json
+root_folder_id = ${rootFolderId}
+proxy = $LOCAL_PROXY
+CONF_EOF
+else
+cat << CONF_EOF > ~/.config/rclone/rclone.conf
 [gdrive]
 type = drive
 scope = drive
 service_account_file = /etc/gdrive/service_account.json
 root_folder_id = ${rootFolderId}
 CONF_EOF
+fi
 cp ~/.config/rclone/rclone.conf /etc/rclone/rclone.conf 2>/dev/null || true
 
 # 安装 rclone (若缺失)
@@ -90,6 +137,9 @@ fi
 # 写入便捷辅助指令
 cat << 'BIN_EOF' > /usr/local/bin/gdrive-push
 #!/bin/bash
+if [ -f /etc/profile.d/00-proxy.sh ]; then
+    source /etc/profile.d/00-proxy.sh 2>/dev/null || true
+fi
 if [ -z "$1" ]; then
     echo "用法: gdrive-push <本地文件或文件夹路径> [云端子目录名]"
     echo "示例: gdrive-push ./outputs/best.pt"
@@ -110,6 +160,9 @@ BIN_EOF
 
 cat << 'BIN_EOF' > /usr/local/bin/gdrive-pull
 #!/bin/bash
+if [ -f /etc/profile.d/00-proxy.sh ]; then
+    source /etc/profile.d/00-proxy.sh 2>/dev/null || true
+fi
 if [ -z "$1" ]; then
     echo "用法: gdrive-pull <云端文件或文件夹路径> [本地存放目录]"
     echo "示例: gdrive-pull best.pt ./"
@@ -124,6 +177,9 @@ BIN_EOF
 
 cat << 'BIN_EOF' > /usr/local/bin/gdrive-ls
 #!/bin/bash
+if [ -f /etc/profile.d/00-proxy.sh ]; then
+    source /etc/profile.d/00-proxy.sh 2>/dev/null || true
+fi
 rclone lsf "gdrive:\${1:-}"
 BIN_EOF
 

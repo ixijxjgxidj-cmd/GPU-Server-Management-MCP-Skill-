@@ -1,6 +1,6 @@
 import type { McpTool } from './index';
 import { queryServersByAbility, getReachability, getServerNotes, getServerPitfalls, listProxies } from '../../db/queries';
-import { renderConnectionMode } from '../../models/server';
+import { renderConnectionMode, detectIsChinaMainland, detectLocalProxy, resolveServerGoogleDriveStatus } from '../../models/server';
 import { loadAgeSec } from '../../orchestration/load';
 import type { ServerNoteEntry } from '../../orchestration/types';
 
@@ -206,6 +206,17 @@ export const getServersTool: McpTool = {
         updated_at: p.updated_at,
       }));
 
+      const parsedTags: string[] = s.tags ? (typeof s.tags === 'string' ? JSON.parse(s.tags) : s.tags) : [];
+      const parsedTasks = s.top_cpu_tasks ? safeParseTasks(s.top_cpu_tasks) : [];
+      const isChina = detectIsChinaMainland(s.host, s.provider, parsedTags);
+      const localProxyInfo = detectLocalProxy({
+        v2ray_available: s.v2ray_available === 1,
+        tags: parsedTags,
+        notes: s.notes,
+        top_cpu_tasks: parsedTasks,
+      });
+      const gdriveStatus = resolveServerGoogleDriveStatus(isChina, localProxyInfo);
+
       return {
         id: s.id,
         name: s.name,
@@ -223,6 +234,12 @@ export const getServersTool: McpTool = {
           direct_when_proxy_available: s.direct_when_proxy_available === 1,
           direct_when_no_proxy: s.direct_when_no_proxy === 1,
         }),
+        is_china_mainland: isChina,
+        local_proxy_deployed: localProxyInfo.deployed,
+        local_proxy_type: localProxyInfo.type,
+        local_proxy_usage: localProxyInfo.usage,
+        google_drive_enabled: gdriveStatus.enabled,
+        google_drive_status: gdriveStatus.status_label,
         gpu_model: s.gpu_model,
         gpu_memory_gb: s.gpu_memory_gb,
         cpu_cores: s.cpu_cores,
@@ -231,7 +248,7 @@ export const getServersTool: McpTool = {
         online: s.status_online === 1,
         ping_ms: s.status_ping_ms,
         is_jump_host: s.is_jump_host === 1,
-        tags: s.tags ? JSON.parse(s.tags) : [],
+        tags: parsedTags,
         notes: s.notes,
         gpu_count: s.gpu_count,
         gpu_sharing_mode: s.gpu_sharing_mode,
@@ -253,9 +270,9 @@ export const getServersTool: McpTool = {
           env_activate: envActivateCmd,
           run_with_env: runWithEnvCmd,
           create_project_workspace: `mkdir -p ${primaryDataDir}/projects/{project_name}_$(date +%Y%m%d_%H%M%S)/output && cd $_`,
-          gdrive_setup: 'curl -fsSL https://gpu-mcp-server-cf.hulkcheng0806.workers.dev/api/gdrive/setup.sh | bash',
-          gdrive_push: 'gdrive-push <local_path> [remote_subdir]',
-          gdrive_pull: 'gdrive-pull <remote_path> [local_dir]',
+          gdrive_setup: gdriveStatus.setup_command,
+          gdrive_push: gdriveStatus.push_command,
+          gdrive_pull: gdriveStatus.pull_command,
           register_env_hint: '若在此服务器配置了全新环境，调用 register_environment { server_id: "' + s.id + '", name: "...", path: "..." } 永久沉淀进集体记忆！',
         },
         top_cpu_tasks: s.top_cpu_tasks ? safeParseTasks(s.top_cpu_tasks) : [],
@@ -315,7 +332,12 @@ export const getServersTool: McpTool = {
       '   - **严禁将 SOCKS5 代理池作为任何文件/依赖下载任务的代理！** 缺失依赖/下载请对比国内镜像源与服务器本机本地代理 (/etc/profile.d/00-proxy.sh) 测速拉取。\n' +
       '5. ⚠️【同运营商 (Provider) 踩坑与避坑经验全自动共享】: \n' +
       '   - 每台服务器返回的 pitfalls 与 notes_entries 已自动聚合当前服务器及同运营商（如 AutoDL、RunPod 等）其他服务器的历史避坑经验与专题笔记（带 is_shared 标识）。遇到任何报错第一顺位调用 query_troubleshooting；若摸索出新避坑方案，必须调用 record_pitfall 沉淀进集体记忆，全网同运营商机器永久共享！\n' +
-      '6. 📦【数据备份与释放】: \n' +
+      '6. 🌐【本地出海代理部署感知与 Google Drive 规则】: \n' +
+      '   - 每台服务器返回 `local_proxy_deployed` (True/False)、`local_proxy_usage` (具体用法如 source /etc/profile.d/00-proxy.sh) 与 `is_china_mainland`；\n' +
+      '   - 若位于中国大陆且已部署 sing-box/本地代理，Google Drive 默认自动走 sing-box (127.0.0.1:10809) 代理通道进行同步；\n' +
+      '   - 若位于中国大陆且未部署本地出海代理，Google Drive 已自动禁用 (`google_drive_enabled: false`)，必须先部署出海代理后方可使用；\n' +
+      '   - 若位于海外节点，Google Drive 默认直连高速可用。\n' +
+      '7. 📦【数据备份与释放】: \n' +
       '   - 实验结束调用 plan_server_backup { remote_data_dir: "<primary_data_dir>/projects/{project}/output", ... } 智能备份实验产出，随后调用 release_server 释放算力。';
 
     return {
