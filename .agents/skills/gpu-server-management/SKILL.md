@@ -130,66 +130,60 @@ Every task session on a GPU machine MUST follow this 5-step loop:
 
 ---
 
-## 📥 服务器下载与数据获取全流程策略 (Server Download Strategy)
+## 📥 数据、权重与依赖获取三层状态机 (3-Tier Acquisition State Machine)
 
 > 🔒 **【核心边界与 SOCKS5 专用铁律】**：  
 > 集群 SOCKS5 代理池 (`reachable_proxies` / `proxy_acceleration.ready_to_use_commands.ssh_proxy_jump`) **仅专门用于 SSH 跳板连接与端口穿透**。  
 > **严禁将 SOCKS5 代理池用于任何服务器下载、pip 安装或数据集拉取任务！**  
 > 下载测速对比仅限于：**直连/国内镜像源** vs **服务器本机已配置好的本地代理环境 (如本机 127.0.0.1 代理或 /etc/profile.d/00-proxy.sh)**。
 
-当服务器需要下载任何外部资源（数据集、模型权重、依赖包、源码或配置）时，所有 Agent **必须严格按以下递进策略执行**：
+当服务器需要定位或拉取任何数据集、模型权重、历史产出或依赖包时，所有 Agent **必须严格执行以下不可跳步的三层状态机 (3-Tier Escalation State Machine)**：
+
+### 🤖 必须遵循的思考链规范 (Mandatory CoT Template)
+在寻找任何数据/包之前，Agent 必须在思考链中按如下状态格式进行推导记录：
+```
+[Data Discovery State Machine]
+1. 目标资产：<数据集名称/权重/包名>
+2. [Tier 1 Check]: 调用 list_gdrive_files { query: "<关键词>" } 检查 Google Drive 云端...
+   ├─► 若命中: 执行 gdrive-pull 并终止状态机
+   └─► 若未命中: 输出 [Tier 1 Miss: Google Drive not found, escalating to Tier 2]
+3. [Tier 2 Check]: 调用 query_backup_index { query: "<关键词>" } 语义检索集群/中转机 RAG 索引...
+   ├─► 若命中: 复制 rsync 指令从对端节点/中转机 (tor1) 高速拉取并终止状态机
+   └─► 若未命中: 输出 [Tier 2 Miss: Relay/Cluster RAG not found, escalating to Tier 3]
+4. [Tier 3 Fallback]: 仅在前两层均显式返回 Miss 时，才允许本地扫描并 scp 上传保底。
+```
+
+---
 
 ```
-[服务器需要下载/获取资源]
+[服务器缺少数据 / 权重 / 项目依赖]
        │
        ▼
-【第 1 步：检索 Workers RAG 数据池与集群已有缓存】
-  1. 调用 query_backup_index { query: "自然语言描述/指标/数据集名" } 检索 Cloudflare Workers 上的 RAG 向量池
-  2. 调用 get_servers 查看各节点的 datasets 目录与本地缓存
-  ├─► 命中 Google Drive 备份: 直接从云盘提取
-  ├─► 命中对端机器中转备份/已有 datasets 缓存:
-  │    直接利用已有数据，或在 plan_task_allocation 中利用 Dataset Affinity (+10万分) 调度到该节点
-  └─► 命中本地备份核心文件: 直接 scp 上传
-       │ (未命中任何已有数据)
-       ▼
-【第 2 步：网络检索获取真实下载直链】
-  使用网络检索工具 (anysearch / search_web / Cloudflare Browser rendering) 
-  在 HuggingFace / ModelScope / GitHub / 官方开源源中检索获取文件的真实下载直链 (Direct URL)
-       │ (获取到直链)
-       ▼
-【第 3 步：直连 vs. 服务器本机已配置代理 并发测速竞速 (哪个快选哪个)】
-  • 运行并发测速脚本，对【直连镜像通道 (如 USTC/清华/阿里)】与【服务器本机已配本地出海代理】同时进行 3-5 秒 Range 请求测速：
-    - 直连测速: curl -s -w "%{speed_download}" -o /dev/null --max-time 8 "<URL>"
-    - 本地代理测速: curl -x "$LOCAL_SERVER_PROXY" -s -w "%{speed_download}" -o /dev/null --max-time 8 "<URL>"
-  • 动态竞速裁决 (哪个快选哪个)：
-    ├─► 直连速度更快 (或直连 >= 本地代理): 
-    │    采用直连通道极速下载：aria2c -s 16 -x 16 "<URL>" || wget "<URL>"
-    └─► 服务器本机代理更快:
-         自动导出服务器本机代理并加速下载：
-         source /etc/profile.d/00-proxy.sh (或 export http_proxy="http://127.0.0.1:10809")
-         aria2c -s 16 -x 16 "<URL>"
-       │
-       ├─► 中小文件顺利完成 ──► 前往【第 6 步：就地登记】
-       │
-       ▼ (大型模型权重/超大数据集 >500MB 或 需多通道聚合)
-【第 4 步：多通道分片并发聚合拉取 (Multi-Proxy Chunk Aggregator)】
-  • 执行 multi_proxy_downloader.py：
-    python3 multi_proxy_downloader.py "<URL>"
-  • 机制：利用 curl -r 原生分片多线程拉取，自动断点续传与合并校验。
-       │
-       ├─► 分片聚合拉取完成 ──► 前往【第 6 步：就地登记】
-       │
-       ▼ (网络检索不到直链 / 需本地私有凭据 / 外网全阻断)
-【第 5 步：本地物理机下载并中转上传 (保底机制)】
-  若公网无法检索或受网络隔离限制，在本地物理机完成下载/准备后，
-  通过 scp / rsync 直接上传至服务器的共享目录或项目文件夹：
-  scp -P <port> ./local_file <user>@<host>:~/shared/datasets/ (或 ~/projects/{project}_{time}/)
+【第 1 层状态：Google Drive 云端提取 (Tier 1 Gate)】
+  • 动作：调用 list_gdrive_files { query: "..." } 或在终端执行 gdrive-ls
+  • 判定：
+    ├─► 🟢 命中目标数据: 直接执行 gdrive-pull <云端路径> [本地目标目录] ➔ 状态机结束
+    └─► 🔴 未命中: 状态机强制升级 (Escalate) 至【第 2 层状态】
        │
        ▼
-【第 6 步：必须执行·数据集就地登记 (register_dataset)】
-  任何途径成功下载/获取数据集后，必须立即调用：
-  register_dataset { server_id, name: "<数据集名称>", path: "<绝对路径>", size_gb: <大小> }
-  将数据登记进集体记忆，以便后续任务复用并享受 Dataset Affinity 亲和调度！
+【第 2 层状态：中转服务器 (tor1) 与集群对端 RAG 检索 (Tier 2 Gate)】
+  • 动作：调用 query_backup_index { query: "自然语言描述/指标/数据集名" } 检索 Cloudflare Workers RAG 向量池
+  • 判定：
+    ├─► 🟢 命中中转机 (tor1 159.203.15.86: /mnt/volume_tor1_*) 或超算存储 (ZZAI: /root/private_data/):
+    │     直接执行机房千兆专线 rsync 高速拉取 (零本地等待) ➔ 状态机结束
+    └─► 🔴 未命中: 状态机强制升级 (Escalate) 至【第 3 层状态】
+       │
+       ▼
+【第 3 层状态：本地物理机中转上传 (Tier 3 Fallback)】
+  • 前置条件：仅当 Tier 1 (Google Drive) 与 Tier 2 (中转机/集群 RAG) 均已检索并确认无此数据时放行！
+  • 动作：在本地物理机完成准备，通过 scp -P <port> 上传至服务器共享目录 ~/shared/datasets/
+       │
+       ▼ (若三层私有缓存均无，需从公网拉取开源资产)
+【公网开源资源获取流水线】：
+  1. 网络检索直链 (anysearch / search_web / Cloudflare Browser)
+  2. 直连 vs. 本地出海代理 (127.0.0.1:10809) 并发测速竞速 (哪个快选哪个)
+  3. >500MB 大文件走 multi_proxy_downloader.py 多通道分片并发聚合
+  4. 成功拉取后必须立即调用 register_dataset 登记进集体记忆！
 ```
 
 ---

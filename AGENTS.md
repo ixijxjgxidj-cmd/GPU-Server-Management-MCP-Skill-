@@ -17,13 +17,12 @@
    - Reusable datasets and model weights must be stored in the shared directory:  
      `<primary_data_dir>/shared/datasets/` and `<primary_data_dir>/shared/models/`.
    - **Environment Reuse First**: Always activate the pre-configured `primary_env` via `ready_to_use_commands.env_activate`. Never recreate `.venv` or re-install PyTorch blindly. If a new environment is created, immediately call `register_environment` to register it into collective memory.
-3. **Execute the 6-Step Download Strategy**:
-   - Step 1: Check Workers RAG index (`query_backup_index`) & local pre-cached datasets (`get_servers`).
-   - Step 2: Search direct URL via `anysearch` / `search_web`.
-   - Step 3: Run `plan_network_relay` Direct vs. Proxy concurrency speed race.
-   - Step 4: For >500MB files, execute Multi-Proxy chunk-aggregated downloading.
-   - Step 5: Fall back to local machine upload via `scp` if restricted.
-   - Step 6: Always call `register_dataset` upon completion to populate collective memory.
+3. **数据与包获取三层状态机 (3-Tier Acquisition State Machine & CoT)**:
+   - **思考链必填状态推导**: 寻找任何数据前，必须按 `[Tier 1 Check: Google Drive]` -> 若未命中输出 `[Tier 1 Miss -> Escalating to Tier 2]` -> `[Tier 2 Check: Relay/Cluster RAG]` -> 若未命中输出 `[Tier 2 Miss -> Tier 3 Fallback]` 格式推导。
+   - **Tier 1 (最高优先级·首选)**: 调用 `list_gdrive_files` 检查 Google Drive，命中直接 `gdrive-pull`（国内自动走 sing-box 加速，海外直连）。
+   - **Tier 2 (次优顺位)**: 调用 `query_backup_index` 检索 Workers RAG 向量池，命中中转机 (tor1 `159.203.15.86`) 或超算节点 (ZZAI) 时走机房千兆专线 `rsync` 极速拉取。
+   - **Tier 3 (保底末位·受控)**: 仅在 Tier 1 & Tier 2 均显式返回 Miss 时，才允许本地物理机扫描并 `scp` 上传保底。
+   - **公网开源资源获取**: 直链检索 -> 直连vs代理并发竞速 -> >500MB 多代理分片 -> 立即调用 `register_dataset` 登记。
 4. **Mandatory Troubleshooting RAG Query**:
    - On encountering ANY error, exception, or failure, query the Troubleshooting RAG knowledge base first.
    - Apply the verified fix and record new lessons learned via `upsert_server`'s `notes_entry`.
