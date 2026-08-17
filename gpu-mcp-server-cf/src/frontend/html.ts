@@ -914,7 +914,7 @@ export const HTML = `<!DOCTYPE html>
         addInfoRow('运营商', '<span style="display:inline-block;padding:2px 8px;border-radius:4px;background:rgba(99,102,241,0.15);color:#818cf8;border:1px solid rgba(99,102,241,0.3);font-size:11px;font-weight:600;">🏷️ ' + escHtml(s.provider) + ' (知识共享)</span>', true);
       }
       addInfoRow('地址', s.host+':'+s.port);
-      addInfoRow('连接', (s.connection_type === 'cloudflare_tunnel') ? '☁️ CF隧道' : (s.connection_mode_label || '标准SSH'));
+      addInfoRow('连接', (s.connection_type === 'tunnel' || s.connection_type === 'cloudflare_tunnel') ? '🚇 内网穿透隧道' : (s.connection_mode_label || '标准SSH'));
       addInfoRow('GPU', s.gpu_model||'N/A');
       if (s.gpu_count && s.gpu_count > 0) {
         addInfoRow('GPU分配', (s.gpu_sharing_mode === 'exclusive' ? '🔒 独占(训练)' : '🤝 共享(推理)') + ' · ' + s.gpu_count + '卡');
@@ -2524,7 +2524,7 @@ export const HTML = `<!DOCTYPE html>
         '<div class="form-group"><label>厂商URL</label><input id="add-vendor-url" placeholder="https://cloud.example.com"></div>' +
         '<div class="form-group"><label>备注</label><textarea id="add-notes" rows="2" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-size:13px;resize:vertical" placeholder="服务器的用途、注意事项等"></textarea></div>' +
         '<div style="margin:12px 0"><strong>连接方式与角色</strong></div>' +
-        '<div class="form-group"><label>连接形式</label><select id="add-connection-type"><option value="standard">标准SSH（直连/代理）</option><option value="cloudflare_tunnel">Cloudflare隧道（cloudflared access ssh）</option></select></div>' +
+        '<div class="form-group"><label>连接形式</label><select id="add-connection-type"><option value="standard">标准SSH（直连/代理）</option><option value="tunnel">🚇 内网穿透隧道（Cloudflare Tunnel / tmate / FRP 等）</option></select></div>' +
         '<div id="conn-standard-toggles" class="toggle-group" style="display:flex;flex-wrap:wrap;gap:12px;">' +
         '  <label><input type="checkbox" id="add-v2ray"> 有V2RayN</label>' +
         '  <label><input type="checkbox" id="add-direct-proxy" checked> V2RayN时可直连</label>' +
@@ -2558,7 +2558,7 @@ export const HTML = `<!DOCTYPE html>
 
     function triggerConnTypeChange() {
       var sel = document.getElementById('add-connection-type');
-      var isTunnel = sel && sel.value === 'cloudflare_tunnel';
+      var isTunnel = sel && (sel.value === 'tunnel' || sel.value === 'cloudflare_tunnel');
       var stdRow = document.getElementById('conn-standard-row');
       var tunnelRow = document.getElementById('conn-tunnel-row');
       var toggles = document.getElementById('conn-standard-toggles');
@@ -2569,7 +2569,7 @@ export const HTML = `<!DOCTYPE html>
 
     function editToggleConnType() {
       var sel = document.getElementById('edit-connection-type');
-      var isTunnel = sel && sel.value === 'cloudflare_tunnel';
+      var isTunnel = sel && (sel.value === 'tunnel' || sel.value === 'cloudflare_tunnel');
       var toggles = document.getElementById('edit-conn-standard-toggles');
       var hint = document.getElementById('edit-conn-tunnel-hint');
       if (toggles) toggles.style.display = isTunnel ? 'none' : '';
@@ -2609,14 +2609,14 @@ export const HTML = `<!DOCTYPE html>
 
     async function verifyAndSave() {
       var connTypeSel = document.getElementById('add-connection-type');
-      var isTunnel = connTypeSel && connTypeSel.value === 'cloudflare_tunnel';
+      var isTunnel = connTypeSel && (connTypeSel.value === 'tunnel' || connTypeSel.value === 'cloudflare_tunnel');
       var host = isTunnel
         ? document.getElementById('add-tunnel-host').value
         : document.getElementById('add-host').value;
       var port = isTunnel ? 22 : (parseInt(document.getElementById('add-port').value) || 22);
       const resultsDiv = document.getElementById('verify-results');
       resultsDiv.textContent = '⏳ 验证中...';
-      const response = await fetch('/api/verify-server', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host,port,connection_type: isTunnel?'cloudflare_tunnel':'standard'}) });
+      const response = await fetch('/api/verify-server', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host,port,connection_type: isTunnel?'tunnel':'standard'}) });
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       resultsDiv.innerHTML = '';
@@ -3566,8 +3566,9 @@ export const HTML = `<!DOCTYPE html>
 
         addInput('名称', 'edit-name', 'text', s.name);
         var _eCT = s.connection_type || 'standard';
-        addInput(_eCT === 'cloudflare_tunnel' ? '隧道域名' : '地址', 'edit-host', 'text', s.host);
-        if (_eCT !== 'cloudflare_tunnel') {
+        var _isTun = _eCT === 'tunnel' || _eCT === 'cloudflare_tunnel';
+        addInput(_isTun ? '隧道地址/域名' : '地址', 'edit-host', 'text', s.host);
+        if (!_isTun) {
           addInput('端口', 'edit-port', 'text', s.port);
         }
         addInput('用户名', 'edit-user', 'text', s.username);
@@ -3624,17 +3625,18 @@ export const HTML = `<!DOCTYPE html>
 
         // Connection type selector + mode toggles
         var _ct = s.connection_type || 'standard';
+        var _isTunSelected = _ct === 'tunnel' || _ct === 'cloudflare_tunnel';
         var _isJump = s.is_jump_host === 1 || s.is_jump_host === true;
         var connDiv = document.createElement('div');
         connDiv.innerHTML = '<div style="margin:12px 0"><strong>连接方式与角色</strong></div>'+
-          '<div class="form-group"><label>连接形式</label><select id="edit-connection-type" onchange="editToggleConnType()"><option value="standard"'+(_ct==='standard'?' selected':'')+'>标准SSH（直连/代理）</option><option value="cloudflare_tunnel"'+(_ct==='cloudflare_tunnel'?' selected':'')+'>Cloudflare隧道（cloudflared access ssh）</option></select></div>'+
-          '<div id="edit-conn-standard-toggles" class="toggle-group" style="display:flex;flex-wrap:wrap;gap:12px;'+(_ct==='cloudflare_tunnel'?'display:none;':'')+'">'+
+          '<div class="form-group"><label>连接形式</label><select id="edit-connection-type" onchange="editToggleConnType()"><option value="standard"'+(!_isTunSelected?' selected':'')+'>标准SSH（直连/代理）</option><option value="tunnel"'+(_isTunSelected?' selected':'')+'>🚇 内网穿透隧道（Cloudflare Tunnel / tmate / FRP 等）</option></select></div>'+
+          '<div id="edit-conn-standard-toggles" class="toggle-group" style="display:flex;flex-wrap:wrap;gap:12px;'+(_isTunSelected?'display:none;':'')+'">'+
           '<label><input type="checkbox" id="edit-v2ray"'+(s.proxy?.v2ray_available||s.v2ray_available?' checked':'')+'> 有V2RayN</label>'+
           '<label><input type="checkbox" id="edit-direct-proxy"'+(s.proxy?.direct_when_proxy_available||s.direct_when_proxy_available?' checked':'')+'> V2RayN时可直连</label>'+
           '<label><input type="checkbox" id="edit-direct-no-proxy"'+(s.proxy?.direct_when_no_proxy||s.direct_when_no_proxy?' checked':'')+'> 无代理时直连</label>'+
           '<label style="color:#facc15;font-weight:600;"><input type="checkbox" id="edit-is-jump-host"'+(_isJump?' checked':'')+'> 🔀 设为跳板机 (用于SSH穿透与状态探针)</label>'+
           '</div>'+
-          '<div id="edit-conn-tunnel-hint" class="form-group"'+(_ct!=='cloudflare_tunnel'?' style="display:none"':'')+' style="margin-top:6px;padding:8px 12px;border-radius:6px;border:1px dashed var(--border);font-size:12px;color:var(--text-2)">☁️ 客户机需先安装 cloudflared 并执行 <code>cloudflared login</code>，连接时用 <code>ssh -o ProxyCommand="cloudflared access ssh --hostname %h" user@隧道域名</code></div>';
+          '<div id="edit-conn-tunnel-hint" class="form-group"'+(!_isTunSelected?' style="display:none"':'')+' style="margin-top:6px;padding:8px 12px;border-radius:6px;border:1px dashed var(--border);font-size:12px;color:var(--text-2)">🚇 内网穿透隧道：支持 Cloudflare Tunnel (<code>cloudflared access ssh</code>)、tmate (<code>ssh token@host</code>) 与 FRP 等穿透。</div>';
         content.appendChild(connDiv);
 
         var actionsDiv = document.createElement('div'); actionsDiv.className = 'modal-actions';

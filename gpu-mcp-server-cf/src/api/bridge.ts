@@ -74,12 +74,9 @@ app.get('/tasks', async (c) => {
   const targets = all
     .filter(s => !jumpHost || s.host !== jumpHost)
     .map(s => {
-      const connType = s.connection_type === 'cloudflare_tunnel' ? 'cloudflare_tunnel' : 'standard';
-      // cloudflare_tunnel: the only sane path is through cloudflared (host = tunnel
-      //   hostname, port is the tunnel SSH port). We still list direct as a first
-      //   attempt for the rare case the tunnel host also resolves directly.
-      // standard: direct first, then each socks5 proxy via ProxyCommand.
-      const ssh_plan = connType === 'cloudflare_tunnel'
+      const isCf = s.connection_type === 'cloudflare_tunnel' || (s.host && s.host.includes('trycloudflare.com'));
+      const connType = (s.connection_type === 'tunnel' || s.connection_type === 'cloudflare_tunnel') ? 'tunnel' : 'standard';
+      const ssh_plan = isCf
         ? [{ mode: 'cloudflared' as const }, { mode: 'direct' as const }]
         : [
             { mode: 'direct' as const },

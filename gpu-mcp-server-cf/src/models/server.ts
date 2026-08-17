@@ -55,7 +55,7 @@ export interface ServerDetail {
   status_error: string | null;
   gpu_count: number | null;
   gpu_sharing_mode: 'shared' | 'exclusive';
-  connection_type: 'standard' | 'cloudflare_tunnel';
+  connection_type: 'standard' | 'tunnel' | 'cloudflare_tunnel';
   default_proxy_id: string | null;
   reachable_proxies: Array<{ id: string; name: string; latency_ms: number | null }>;
   tags: string[];
@@ -71,7 +71,10 @@ export interface ServerDetail {
   updated_at: string;
 }
 
-export function renderConnectionMode(p: ProxyConfig): string {
+export function renderConnectionMode(p: ProxyConfig, connectionType?: string): string {
+  if (connectionType === 'tunnel' || connectionType === 'cloudflare_tunnel') {
+    return '🚇 内网穿透隧道';
+  }
   if (p.v2ray_available && p.direct_when_proxy_available)
     return '🔓 直连（有V2RayN时可直连）';
   if (p.v2ray_available && !p.direct_when_proxy_available)
@@ -92,6 +95,7 @@ export function dbServerToDetail(
     direct_when_proxy_available: db.direct_when_proxy_available === 1,
     direct_when_no_proxy: db.direct_when_no_proxy === 1,
   };
+  const connType = (db.connection_type === 'tunnel' || db.connection_type === 'cloudflare_tunnel') ? 'tunnel' : 'standard';
   return {
     id: db.id,
     name: db.name,
@@ -112,14 +116,14 @@ export function dbServerToDetail(
       ram_gb: db.ram_gb ?? undefined,
       disk_gb: db.disk_gb ?? undefined,
     },
-    connection_mode_label: renderConnectionMode(proxy),
+    connection_mode_label: renderConnectionMode(proxy, connType),
     status_online: db.status_online === 1,
     status_last_check: db.status_last_check,
     status_ping_ms: db.status_ping_ms,
     status_error: db.status_error,
     gpu_count: db.gpu_count,
     gpu_sharing_mode: db.gpu_sharing_mode === 'exclusive' ? 'exclusive' : 'shared',
-    connection_type: db.connection_type === 'cloudflare_tunnel' ? 'cloudflare_tunnel' : 'standard',
+    connection_type: connType,
     default_proxy_id: db.default_proxy_id,
     reachable_proxies: reachableProxies ?? [],
     tags: db.tags ? JSON.parse(db.tags) : [],

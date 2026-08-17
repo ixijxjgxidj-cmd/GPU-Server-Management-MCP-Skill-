@@ -170,7 +170,7 @@ app.post('/', async (c) => {
     default_proxy_id: body.default_proxy_id ?? null,
     notes: body.notes ?? null,
     tags: body.tags ? JSON.stringify(body.tags) : null,
-    connection_type: body.connection_type === 'cloudflare_tunnel' ? 'cloudflare_tunnel' : 'standard',
+    connection_type: (body.connection_type === 'tunnel' || body.connection_type === 'cloudflare_tunnel') ? 'cloudflare_tunnel' : 'standard',
     is_jump_host: body.is_jump_host ? 1 : 0,
   });
   return c.json({ id }, 201);

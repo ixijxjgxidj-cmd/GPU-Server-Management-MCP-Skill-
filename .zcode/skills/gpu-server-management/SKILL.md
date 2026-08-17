@@ -284,7 +284,7 @@ plus **`proxy_acceleration`** (遇到需要代理时自动返回的极速套件�
 | `record_pitfall` / `remove_pitfall` | Collective memory management for caveats, environment quirks, and fix workarounds. |
 | `register_environment` / `remove_environment` | 跨会话环境持久化：固化 Conda/Venv 虚拟环境与激活命令，防失忆重装。 |
 | `import_proxy_subscription` | Ingest and refresh proxy subscriptions. |
-| `upsert_server { host, provider?, ... }` | Register or update in one call, keyed by `host`. New servers also require `name`, `username`, `auth_method`. Pass `provider` to enable auto-sharing of pitfalls and notes across peers. |
+| `upsert_server { host, provider?, connection_type?, ... }` | 登记或更新服务器，`host` 为去重键。新建服务器需包含 `name`, `username`, `auth_method`。`connection_type` 可选 `standard` (标准SSH直连/SOCKS5跳板) 或 `tunnel` (🚇 内网穿透隧道: 支持 Cloudflare Tunnel / tmate / FRP 自动解析)。传入 `provider` 可跨节点自动共享避坑经验与专题笔记。 |
 | `register_dataset` / `remove_dataset` | Manage pre-cached datasets and directories on servers for Dataset Affinity. |
 | `update_server` / `remove_server` | Change fields or delete servers (deletion cascades to all backup indexes by IP). |
 

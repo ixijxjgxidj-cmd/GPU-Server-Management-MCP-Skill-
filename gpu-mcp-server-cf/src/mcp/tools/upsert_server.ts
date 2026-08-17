@@ -38,7 +38,7 @@ export const upsertServerTool: McpTool = {
         is_jump_host: { type: 'boolean', description: '是否作为跳板机 (用于SSH中转与状态探针)。' },
         gpu_count: { type: 'number', description: 'GPU卡数(静态容量)。' },
         gpu_sharing_mode: { type: 'string', enum: ['shared', 'exclusive'], description: 'GPU分配模式。shared(默认):按空闲显存共享同一张卡,适合推理/多任务共存;exclusive:整卡独占,适合训练。' },
-        connection_type: { type: 'string', enum: ['standard', 'cloudflare_tunnel'], description: '连接方式。standard(默认):直连或经socks5代理SSH到host:port;cloudflare_tunnel:经Cloudflare隧道SSH,host填隧道域名,客户端用 cloudflared access ssh --hostname <host>。' },
+        connection_type: { type: 'string', enum: ['standard', 'tunnel', 'cloudflare_tunnel'], description: '连接方式。standard(默认): 标准直连或SOCKS5跳板; tunnel / cloudflare_tunnel: 内网穿透隧道(支持 Cloudflare Tunnel、tmate、FRP 等临时/持久穿透)。' },
         gpu_util_pct: { type: 'number', description: 'GPU利用率0-100(负载快照)。' },
         gpu_mem_free_gb: { type: 'number', description: '空闲显存GB(负载快照)。' },
         ram_free_gb: { type: 'number', description: '空闲内存GB(负载快照)。' },
@@ -66,15 +66,31 @@ export const upsertServerTool: McpTool = {
     },
   },
   execute: async (args, { db }) => {
-    const host = args.host as string;
+    let host = (args.host as string).trim();
+    let username = args.username as string | undefined;
+    let port = args.port as number | undefined;
+    let connType = (args.connection_type === 'tunnel' || args.connection_type === 'cloudflare_tunnel') ? 'tunnel' : (args.connection_type ?? 'standard');
+
+    // Smart parsing for SSH connection links e.g. "ssh token@sfo2.tmate.io" or "token@sfo2.tmate.io:22"
+    const sshCmdMatch = host.match(/^(?:ssh\s+)?(?:-p\s*(\d+)\s+)?([^\s@]+)@([^\s:]+)(?::(\d+))?$/i);
+    if (sshCmdMatch) {
+      const parsedPort = parseInt(sshCmdMatch[1] || sshCmdMatch[4] || '22', 10);
+      username = username || sshCmdMatch[2];
+      host = sshCmdMatch[3];
+      port = port || parsedPort;
+      connType = 'tunnel';
+    } else if (host.includes('.tmate.io') || host.includes('trycloudflare.com')) {
+      connType = 'tunnel';
+    }
+
     const existing = await getServerByHost(db, host);
 
     // Fields that map 1:1; only include those actually provided.
     const boolToInt = (v: unknown) => (v === true ? 1 : v === false ? 0 : undefined);
     const fields: Record<string, unknown> = {
       name: args.name,
-      port: args.port,
-      username: args.username,
+      port: port,
+      username: username,
       auth_method: args.auth_method,
       key_path: args.key_path,
       key_content: args.key_content,
@@ -99,7 +115,7 @@ export const upsertServerTool: McpTool = {
       disk_free_gb: args.disk_free_gb,
       running_tasks: args.running_tasks,
       gpu_sharing_mode: args.gpu_sharing_mode,
-      connection_type: args.connection_type,
+      connection_type: connType,
       tags: Array.isArray(args.tags) ? JSON.stringify(args.tags) : undefined,
       python_version: args.python_version,
       torch_version: args.torch_version,
@@ -132,7 +148,8 @@ export const upsertServerTool: McpTool = {
     }
 
     // Creating: require the minimum fields.
-    const missing = ['name', 'username', 'auth_method'].filter(k => !args[k]);
+    const missing = ['name', 'auth_method'].filter(k => !args[k]);
+    if (!username && !args.username) missing.push('username');
     if (missing.length > 0) {
       return {
         content: [{ type: 'text', text: JSON.stringify({ error: `新建服务器缺少必填字段: ${missing.join(', ')}` }) }],
@@ -145,8 +162,8 @@ export const upsertServerTool: McpTool = {
       provider: (args.provider as string) ?? null,
       vendor_url: (args.vendor_url as string) ?? null,
       host,
-      port: (args.port as number) ?? 22,
-      username: args.username as string,
+      port: port ?? 22,
+      username: (username || args.username) as string,
       auth_method: args.auth_method as 'key' | 'password',
       key_path: (args.key_path as string) ?? null,
       key_content: (args.key_content as string) ?? null,
@@ -163,7 +180,7 @@ export const upsertServerTool: McpTool = {
       default_proxy_id: (args.default_proxy_id as string) ?? null,
       notes: (args.notes as string) ?? null,
       tags: Array.isArray(args.tags) ? JSON.stringify(args.tags) : null,
-      connection_type: args.connection_type === 'cloudflare_tunnel' ? 'cloudflare_tunnel' : 'standard',
+      connection_type: connType === 'tunnel' ? 'cloudflare_tunnel' : 'standard',
     });
     // Write notes entry if provided (even for new servers).
     if (args.notes_entry) {

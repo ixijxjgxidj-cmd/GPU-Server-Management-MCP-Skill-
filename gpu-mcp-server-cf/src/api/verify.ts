@@ -10,7 +10,7 @@ const app = new Hono<{ Bindings: Env }>();
 app.post('/', async (c) => {
   const body = await c.req.json();
   const { host, port = 22, server_id, connection_type = 'standard' } = body;
-  const isTunnel = connection_type === 'cloudflare_tunnel';
+  const isTunnel = connection_type === 'tunnel' || connection_type === 'cloudflare_tunnel';
 
   return streamSSE(c, async (stream) => {
     // Step 0: DNS resolution (skip for bare IPs; useful for tunnel hostnames)

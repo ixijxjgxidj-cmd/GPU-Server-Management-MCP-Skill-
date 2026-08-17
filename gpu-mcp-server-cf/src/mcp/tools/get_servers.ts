@@ -157,7 +157,7 @@ export const getServersTool: McpTool = {
       });
       const bestProxy = sortedProxies[0] ?? null;
 
-      const connType = s.connection_type === 'cloudflare_tunnel' ? 'cloudflare_tunnel' : 'standard';
+      const connType = (s.connection_type === 'tunnel' || s.connection_type === 'cloudflare_tunnel') ? 'tunnel' : 'standard';
 
       // Parse mounts and environments
       const parsedMounts = safeParseMountPoints(s.mount_points);
@@ -236,7 +236,7 @@ export const getServersTool: McpTool = {
           v2ray_available: s.v2ray_available === 1,
           direct_when_proxy_available: s.direct_when_proxy_available === 1,
           direct_when_no_proxy: s.direct_when_no_proxy === 1,
-        }),
+        }, connType),
         is_china_mainland: isChina,
         local_proxy_deployed: localProxyInfo.deployed,
         local_proxy_type: localProxyInfo.type,
@@ -324,7 +324,9 @@ export const getServersTool: McpTool = {
       '1. 认证与连接 (auth_method & connection_type):\n' +
       '   - 密码认证 (auth_method: "password"): 直接使用返回的 `password` 字段。使用 `sshpass -p "<password>" ssh ...` 或 python sshrun.py / paramiko 连接，非凭证缺失！\n' +
       '   - 密钥认证 (auth_method: "key"): echo "<key_content_b64>" | base64 -d > /tmp/dsh_<id> && chmod 600 /tmp/dsh_<id>，然后 ssh -i /tmp/dsh_<id> <username>@<host> -p <port>。\n' +
-      '   - cloudflare_tunnel: ssh -o ProxyCommand="cloudflared access ssh --hostname %h" -i <key> <username>@<host>\n' +
+      '   - 内网穿透隧道 (connection_type: "tunnel" / "cloudflare_tunnel"):\n' +
+      '     * Cloudflare Tunnel: ssh -o ProxyCommand="cloudflared access ssh --hostname %h" -i <key> <username>@<host>\n' +
+      '     * tmate / FRP / 其他穿透: 直接按返回的 host / port / username 连接，如 ssh <username>@<host> -p <port>。\n' +
       '2. 📁【新建项目文件夹 (必须使用 primary_data_dir 大容量挂载盘)】: \n' +
       '   - 每次调用服务器做一次实验，**必须建立在 primary_data_dir 主数据盘下**（严禁建在小容量系统根目录 /root 下！）：\n' +
       '     `mkdir -p <primary_data_dir>/projects/{project_name}_{YYYYMMDD_HHMMSS}/output && cd $_`；\n' +

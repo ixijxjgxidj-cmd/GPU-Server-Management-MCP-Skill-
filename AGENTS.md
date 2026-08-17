@@ -12,6 +12,7 @@
    - Never hardcode or guess SSH keys or server credentials.
    - For `auth_method: "key"`, keys are returned in single-line Base64 format (`key_content_b64`) and survive context window compaction.
    - For `auth_method: "password"`, plaintext passwords are explicitly provided in the `password` field (e.g. use `sshpass -p '<password>'` or `python scripts/sshrun.py --password '<password>'`), never treat it as missing credentials!
+   - For `connection_type: "tunnel"` (内网穿透隧道), support Cloudflare Tunnel (`cloudflared access ssh`), tmate session tokens, and FRP tunnels automatically via returned ready-to-use commands.
 2. **Strict Workspace Isolation & Primary Storage**:
    - All experimental code, logs, and artifacts must be placed in a dedicated project directory on the high-capacity volume (`primary_data_dir`):  
      `mkdir -p <primary_data_dir>/projects/{project_name}_{YYYYMMDD_HHMMSS}/` (never on small root `/`).
