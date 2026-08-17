@@ -267,6 +267,9 @@ export const getServersTool: McpTool = {
         primary_env: primaryEnv,
         environments: parsedEnvs,
         ready_to_use_commands: {
+          ssh_connect: s.auth_method === 'password'
+            ? `sshpass -p '${s.password}' ssh -o StrictHostKeyChecking=no ${s.username}@${s.host} -p ${s.port} (或使用 paramiko/sshrun.py)`
+            : `ssh -i /tmp/dsh_${s.id} -o StrictHostKeyChecking=no ${s.username}@${s.host} -p ${s.port}`,
           env_activate: envActivateCmd,
           run_with_env: runWithEnvCmd,
           create_project_workspace: `mkdir -p ${primaryDataDir}/projects/{project_name}_$(date +%Y%m%d_%H%M%S)/output && cd $_`,
@@ -315,8 +318,9 @@ export const getServersTool: McpTool = {
 
     const how_to_connect =
       '【集群连接与研发标准规范 (SOP)】\n' +
-      '1. 认证与连接 (connection_type):\n' +
-      '   - standard (直连/默认): echo "<key_content_b64>" | base64 -d > /tmp/dsh_<id> && chmod 600 /tmp/dsh_<id>，然后 ssh -i /tmp/dsh_<id> <username>@<host> -p <port>。\n' +
+      '1. 认证与连接 (auth_method & connection_type):\n' +
+      '   - 密码认证 (auth_method: "password"): 直接使用返回的 `password` 字段。使用 `sshpass -p "<password>" ssh ...` 或 python sshrun.py / paramiko 连接，非凭证缺失！\n' +
+      '   - 密钥认证 (auth_method: "key"): echo "<key_content_b64>" | base64 -d > /tmp/dsh_<id> && chmod 600 /tmp/dsh_<id>，然后 ssh -i /tmp/dsh_<id> <username>@<host> -p <port>。\n' +
       '   - cloudflare_tunnel: ssh -o ProxyCommand="cloudflared access ssh --hostname %h" -i <key> <username>@<host>\n' +
       '2. 📁【新建项目文件夹 (必须使用 primary_data_dir 大容量挂载盘)】: \n' +
       '   - 每次调用服务器做一次实验，**必须建立在 primary_data_dir 主数据盘下**（严禁建在小容量系统根目录 /root 下！）：\n' +

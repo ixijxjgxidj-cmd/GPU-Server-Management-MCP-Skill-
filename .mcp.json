@@ -1,9 +1,5 @@
 {
   "mcpServers": {
-    "gpu-mcp-server-cf": {
-      "type": "http",
-      "url": "https://gpu-mcp-server-cf.hulkcheng0806.workers.dev/mcp"
-    },
     "dsh-mcp-server": {
       "type": "http",
       "url": "https://dsh-mcp-server.hulkcheng0806.workers.dev/mcp"

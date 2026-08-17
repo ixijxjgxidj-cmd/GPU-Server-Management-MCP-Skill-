@@ -114,7 +114,7 @@ ${decisionBanner}
 
 1. **环境准备（若未配置 Google Drive rclone 环境，执行一键配置）**：
 \`\`\`bash
-curl -fsSL https://gpu-mcp-server-cf.hulkcheng0806.workers.dev/api/gdrive/setup.sh | bash
+curl -fsSL https://dsh-mcp-server.hulkcheng0806.workers.dev/api/gdrive/setup.sh | bash
 \`\`\`
 
 2. **在源服务器上执行极速同步至 Google Drive**：

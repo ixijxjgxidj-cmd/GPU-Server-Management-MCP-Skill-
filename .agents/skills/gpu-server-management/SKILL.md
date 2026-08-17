@@ -118,7 +118,7 @@ Every task session on a GPU machine MUST follow this 5-step loop:
       - **海外节点**：Google Drive 默认直连高速读写。
       - **一键配置命令**（在任何支持的节点秒级初始化 rclone + 凭据）：
         ```bash
-        curl -fsSL https://gpu-mcp-server-cf.hulkcheng0806.workers.dev/api/gdrive/setup.sh | bash
+        curl -fsSL https://dsh-mcp-server.hulkcheng0806.workers.dev/api/gdrive/setup.sh | bash
         ```
       - **原生同步指令**（多线程并发 + 断点续传）：
         - 上传产物：`gdrive-push <本地文件或文件夹> [云端子目录]`（例如 `gdrive-push ./output/best.pt`）

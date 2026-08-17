@@ -1,7 +1,7 @@
 # AGENTS.md - Multi-Agent Global Guidelines & Rules
 
 > **Applicable Agents**: Antigravity, Claude Code, OpenAI Codex, Cursor, Windsurf, OpenCodeInterpreter  
-> **Backend Service**: `gpu-mcp-server-cf`  
+> **Backend Service**: `dsh-mcp-server`  
 > **Skills**: `gpu-server-management`, `cn-proxy-client`
 
 ---
@@ -10,7 +10,8 @@
 
 1. **Always Use `get_servers` for Discovery**:
    - Never hardcode or guess SSH keys or server credentials.
-   - Keys are returned in single-line Base64 format and survive context window compaction.
+   - For `auth_method: "key"`, keys are returned in single-line Base64 format (`key_content_b64`) and survive context window compaction.
+   - For `auth_method: "password"`, plaintext passwords are explicitly provided in the `password` field (e.g. use `sshpass -p '<password>'` or `python scripts/sshrun.py --password '<password>'`), never treat it as missing credentials!
 2. **Strict Workspace Isolation & Primary Storage**:
    - All experimental code, logs, and artifacts must be placed in a dedicated project directory on the high-capacity volume (`primary_data_dir`):  
      `mkdir -p <primary_data_dir>/projects/{project_name}_{YYYYMMDD_HHMMSS}/` (never on small root `/`).

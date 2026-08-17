@@ -324,7 +324,7 @@ export function detectLocalProxy(s: {
 export function resolveServerGoogleDriveStatus(
   isChina: boolean,
   localProxy: LocalProxyInfo,
-  workerBaseUrl: string = 'https://gpu-mcp-server-cf.hulkcheng0806.workers.dev'
+  workerBaseUrl: string = 'https://dsh-mcp-server.hulkcheng0806.workers.dev'
 ): GoogleDriveServerStatus {
   if (!isChina) {
     return {
