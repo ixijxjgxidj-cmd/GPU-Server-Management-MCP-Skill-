@@ -35,4 +35,19 @@
    - When deploying or restoring sing-box proxies on rented CN GPU boxes (Deepln, VirtaiCloud, SCNet ZZAI, etc.), activate the `cn-proxy-client` skill.
    - Never route data paths through the local Windows machine; use remote relay (`tor1`) or direct dialing.
    - Upon completing proxy deployment, always call `update_server` and `upsert_server`'s `notes_entry` to register `v2ray_available: 1`, tags, and usage into collective memory to instantly unlock Google Drive integration!
+7. **标准化自动补齐闭环执行链路与严禁消极阻断 (Strict Ban on Passive Blocking & Mandatory Autonomous Resolution)**:
+   - **绝对红线**：缺少数据、缺权重、缺依赖包或显卡显存瓶颈，**永远不是停止任务（BLOCKED）的理由**！严禁在预检发现缺失时直接退出并下发“等待恢复”的白卷报告。预检的目的是立即自动补齐，不是找借口开脱。
+   - **缺数据 / 权重 / 资产**：必须强制严格按三层状态机依次推进补全：
+     `[Tier 1: Google Drive list_gdrive_files -> gdrive-pull]` ➔ 
+     `[Tier 2: Workers RAG query_backup_index -> 中转机 tor1 / ZZAI 千兆 rsync]` ➔ 
+     `[Tier 3: 官方源下载 / 本地 scp 兜底]` ➔ 
+     拉取完毕立即调用 `register_dataset` 登记！
+   - **缺环境 / 依赖包**：
+     优先复用系统/Conda 解释器；若缺少指定库（如 `seisbench`, `obspy` 等），必须立即通过清华/阿里国内源直连高速补装（云服务器环境需带 `--break-system-packages` 并设 `TMPDIR=<primary_data_dir>/tmp` 防止爆系统盘），安装完成后立即调用 `register_environment` 固化进集体记忆，严禁以此为由拒绝执行！
+   - **GPU 无法满足或显存瓶颈 (严格区分云服务器 vs 本地物理机)**：
+     - **云服务器 / 容器环境 (Cloud GPU Box)**：
+       若当前租用卡显存不足或算力受限，先**降级至 CPU 模式**（`device: cpu`）快速跑通数据切分、基线重放预检与逻辑打通；若需大规模训练/推理，立即调用 `get_servers` 调度符合显存的其他 GPU 节点，并在旧节点释放前完成数据产出备份 (`plan_server_backup`)，严禁在原地停摆！
+     - **本地物理机环境 (Local Environment)**：
+       本地无租期倒计时约束，直接利用本地 CPU/GPU 完成前置校验、轻量调试与数据集 manifest 生成，大规模训练任务由 `get_servers` 路由至远端集群。
+
 
