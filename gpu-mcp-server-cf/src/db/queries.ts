@@ -120,6 +120,7 @@ export async function queryServersByAbility(
   db: D1Database,
   filters: {
     gpu_model?: string;
+    min_gpu_count?: number;
     min_ram_gb?: number;
     min_cpu_cores?: number;
     min_disk_gb?: number;
@@ -130,8 +131,19 @@ export async function queryServersByAbility(
   const params: unknown[] = [];
 
   if (filters.gpu_model) {
-    conditions.push('gpu_model = ?');
-    params.push(filters.gpu_model);
+    const raw = filters.gpu_model.trim().toLowerCase();
+    const clean = raw.replace(/^nvidia\s+/i, '').trim();
+    conditions.push('(LOWER(gpu_model) = ? OR LOWER(gpu_model) LIKE ? OR ? LIKE ("%" || LOWER(gpu_model) || "%"))');
+    params.push(raw, `%${clean}%`, raw);
+  }
+  if (filters.min_gpu_count !== undefined) {
+    if (filters.min_gpu_count > 0) {
+      conditions.push('(gpu_count >= ? OR (gpu_count IS NULL AND gpu_model IS NOT NULL AND gpu_model != "" AND gpu_model != "无" AND gpu_model NOT LIKE "None%"))');
+      params.push(filters.min_gpu_count);
+    } else {
+      conditions.push('gpu_count >= ?');
+      params.push(filters.min_gpu_count);
+    }
   }
   if (filters.min_ram_gb !== undefined) {
     conditions.push('ram_gb >= ?');

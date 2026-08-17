@@ -77,7 +77,8 @@ export const getServersTool: McpTool = {
     inputSchema: {
       type: 'object',
       properties: {
-        gpu_model: { type: 'string', description: '按GPU型号精确过滤，如 "NVIDIA A100"。留空不限。' },
+        gpu_model: { type: 'string', description: '按GPU型号模糊过滤，如 "P4"、"Tesla P4" 或 "A100"。留空不限。' },
+        min_gpu_count: { type: 'number', description: '最低GPU卡数。如 1 表示只查询有GPU的节点，0或留空表示不限（返回所有机器）。' },
         min_gpu_memory_gb: { type: 'number', description: '最低单卡显存(GB)。' },
         min_ram_gb: { type: 'number', description: '最低内存(GB)。' },
         min_cpu_cores: { type: 'number', description: '最低CPU核心数。' },
@@ -88,6 +89,7 @@ export const getServersTool: McpTool = {
   },
   execute: async (args, { db }) => {
     const gpuModel = args.gpu_model as string | undefined;
+    const minGpuCount = args.min_gpu_count as number | undefined;
     const minGpuMemoryGb = args.min_gpu_memory_gb as number | undefined;
     const minRamGb = args.min_ram_gb as number | undefined;
     const minCpuCores = args.min_cpu_cores as number | undefined;
@@ -98,6 +100,7 @@ export const getServersTool: McpTool = {
     // because queryServersByAbility does not accept a tag.
     let servers = await queryServersByAbility(db, {
       gpu_model: gpuModel,
+      min_gpu_count: minGpuCount,
       min_ram_gb: minRamGb,
       min_cpu_cores: minCpuCores,
       status_online: includeOffline ? undefined : true,
