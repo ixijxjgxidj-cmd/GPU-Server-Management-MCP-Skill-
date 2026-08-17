@@ -189,21 +189,25 @@ export async function listGDriveFiles(
 
   if (options.query) {
     const sanitized = options.query.replace(/'/g, "\\'");
-    queryParts.push(`(name contains '${sanitized}' or fullText contains '${sanitized}')`);
+    queryParts.push(`name contains '${sanitized}'`);
   }
 
   const q = queryParts.join(' and ');
   const pageSize = Math.min(100, Math.max(1, options.pageSize || 30));
-  const orderBy = options.orderBy || 'folder,modifiedTime desc,name';
 
   const params = new URLSearchParams({
     q,
     pageSize: pageSize.toString(),
     fields: 'nextPageToken,incompleteSearch,files(id,name,mimeType,size,modifiedTime,createdTime,webViewLink,webContentLink,iconLink,parents,thumbnailLink,owners,md5Checksum)',
-    orderBy,
     supportsAllDrives: 'true',
     includeItemsFromAllDrives: 'true',
   });
+
+  // Google Drive API v3: orderBy is not allowed when fullText query is used.
+  if (!q.includes('fullText')) {
+    const orderBy = options.orderBy || 'folder,modifiedTime desc,name';
+    params.set('orderBy', orderBy);
+  }
 
   if (options.pageToken) {
     params.set('pageToken', options.pageToken);
