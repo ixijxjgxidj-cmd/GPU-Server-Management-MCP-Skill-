@@ -270,9 +270,20 @@ export const getServersTool: McpTool = {
         primary_env: primaryEnv,
         environments: parsedEnvs,
         ready_to_use_commands: {
-          ssh_connect: s.auth_method === 'password'
-            ? `sshpass -p '${s.password}' ssh -o StrictHostKeyChecking=no ${s.username}@${s.host} -p ${s.port} (或使用 paramiko/sshrun.py)`
-            : `ssh -i /tmp/dsh_${s.id} -o StrictHostKeyChecking=no ${s.username}@${s.host} -p ${s.port}`,
+          ssh_connect: (() => {
+            if (connType === 'tunnel') {
+              if (s.host.includes('trycloudflare.com') || (parsedTags && parsedTags.includes('cloudflare'))) {
+                return `ssh -o ProxyCommand="cloudflared access ssh --hostname %h" -o StrictHostKeyChecking=no ${s.username}@${s.host}`;
+              }
+              if (s.host.includes('.tmate.io')) {
+                return `ssh -o StrictHostKeyChecking=no ${s.username}@${s.host} -p ${s.port}`;
+              }
+            }
+            if (s.auth_method === 'password') {
+              return `sshpass -p '${s.password}' ssh -o StrictHostKeyChecking=no ${s.username}@${s.host} -p ${s.port} (或使用 paramiko/sshrun.py)`;
+            }
+            return `ssh -i /tmp/dsh_${s.id} -o StrictHostKeyChecking=no ${s.username}@${s.host} -p ${s.port}`;
+          })(),
           env_activate: envActivateCmd,
           run_with_env: runWithEnvCmd,
           create_project_workspace: `mkdir -p ${primaryDataDir}/projects/{project_name}_$(date +%Y%m%d_%H%M%S)/output && cd $_`,

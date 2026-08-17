@@ -170,8 +170,11 @@ def key_file_for(t):
 
 def build_ssh_cmd(t, step, probe, legacy=False, js_mode=None):
     host, port, user = t['host'], int(t['port']), t['username']
+    is_tmate = host.endswith('.tmate.io') or 'tmate' in str(t.get('tags') or '').lower() or 'tmate' in (t.get('name') or '').lower()
+    is_tunnel = t.get('connection_type') in ('tunnel', 'cloudflare_tunnel') or is_tmate
+
     common = ['ssh', '-p', str(port),
-              '-o', 'BatchMode=yes' if t['auth_method'] == 'key' and not js_mode else 'BatchMode=no',
+              '-o', 'BatchMode=yes' if (t['auth_method'] == 'key' or is_tmate) and not js_mode else 'BatchMode=no',
               '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null',
               '-o', f'ConnectTimeout={SSH_TIMEOUT}', '-o', 'NumberOfPasswordPrompts=1']
     if legacy:
@@ -195,7 +198,7 @@ def build_ssh_cmd(t, step, probe, legacy=False, js_mode=None):
         # this step fails fast (ProxyCommand exec error) and the next step runs.
         common += ['-o', f'ProxyCommand=cloudflared access ssh --hostname %h']
     keyf = key_file_for(t)
-    if t['auth_method'] == 'key' and keyf:
+    if t['auth_method'] == 'key' and keyf and not is_tmate:
         common += ['-i', keyf]
     
     # JumpServer direct command execution syntax:
@@ -230,6 +233,8 @@ def run_probe(t, probe):
     OpenSSH profile first, then a legacy-compat profile if negotiation looks like
     a non-OpenSSH server. Supports JumpServer direct target execution."""
     last_err = ''
+    host = t.get('host', '')
+    is_tmate = host.endswith('.tmate.io') or 'tmate' in str(t.get('tags') or '').lower() or 'tmate' in (t.get('name') or '').lower()
     is_js = bool(t.get('is_jumpserver') or 'jumpserver' in (t.get('notes') or '').lower())
     js_modes = ['direct', 'menu'] if is_js else [None]
 
@@ -238,7 +243,7 @@ def run_probe(t, probe):
             for legacy in (False, True):
                 cmd = build_ssh_cmd(t, step, probe, legacy=legacy, js_mode=js_mode)
                 try:
-                    if t['auth_method'] == 'password' and t.get('password'):
+                    if t['auth_method'] == 'password' and t.get('password') and not is_tmate:
                         r = _ssh_with_password(cmd, t['password'])
                     else:
                         stdin_data = f"{t.get('jumpserver_target') or '1'}\n{probe}\n" if js_mode == 'menu' else None
